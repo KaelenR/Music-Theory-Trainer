@@ -38,13 +38,21 @@ function drawNotes(ctx: RenderContext, stave: Stave, note: StaveNote | GhostNote
   voice.draw(ctx, stave);
 }
 
-export function renderStaff(el: HTMLElement, view: StaffView, pixelWidth: number): void {
+export function renderStaff(
+  el: HTMLElement,
+  view: StaffView,
+  pixelWidth: number,
+  maxPixelHeight?: number,
+): void {
   el.innerHTML = '';
-  const scale = pixelWidth / LOGICAL_WIDTH;
   const grand = view.clef === 'grand';
   const logicalHeight = grand ? 280 : 170;
+  const scale =
+    maxPixelHeight != null
+      ? Math.min(pixelWidth / LOGICAL_WIDTH, maxPixelHeight / logicalHeight)
+      : pixelWidth / LOGICAL_WIDTH;
   const renderer = new Renderer(el as HTMLDivElement, Renderer.Backends.SVG);
-  renderer.resize(pixelWidth, logicalHeight * scale);
+  renderer.resize(LOGICAL_WIDTH * scale, logicalHeight * scale);
   const ctx = renderer.getContext();
   ctx.scale(scale, scale);
 
