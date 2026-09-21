@@ -16,7 +16,7 @@
   });
 
   const RANGE_NOTES: string[] = [];
-  for (let o = 1; o <= 6; o++) for (const s of STEPS) RANGE_NOTES.push(`${s}${o}`);
+  for (let o = 2; o <= 6; o++) for (const s of STEPS) RANGE_NOTES.push(`${s}${o}`);
   RANGE_NOTES.push('C7');
 
   const CLEFS: { value: StaffClef; label: string }[] = [
@@ -47,10 +47,10 @@
     config.exercise.high = CLEF_DEFAULT_RANGES[c].high;
   }
 
-  async function start() {
+  function start() {
     const snap = $state.snapshot(config) as DrillConfig;
-    await setSetting('noteReadingSetup', snap).catch(() => undefined);
     onStart(snap);
+    void setSetting('noteReadingSetup', snap).catch(() => undefined);
   }
 </script>
 

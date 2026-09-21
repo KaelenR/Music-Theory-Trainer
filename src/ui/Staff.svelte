@@ -7,14 +7,17 @@
   let el: HTMLDivElement | undefined = $state();
   let width = $state(0);
   let ready = $state(false);
+  let innerHeight = $state(window.innerHeight);
   staffReady.then(() => (ready = true));
 
-  const effectiveMaxHeight = $derived(maxHeight ?? Math.round(window.innerHeight * 0.6));
+  const effectiveMaxHeight = $derived(maxHeight ?? Math.round(innerHeight * 0.6));
 
   $effect(() => {
     if (el && ready && width > 0) renderStaff(el, view, width, effectiveMaxHeight);
   });
 </script>
+
+<svelte:window bind:innerHeight />
 
 <div class="staff" bind:this={el} bind:clientWidth={width}></div>
 

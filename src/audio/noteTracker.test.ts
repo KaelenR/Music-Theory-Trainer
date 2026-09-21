@@ -63,9 +63,24 @@ describe('NoteTracker', () => {
     expect(events).toHaveLength(1);
   });
 
-  it('emits a new pitch without re-arming (legato)', () => {
+  it('does not emit a pitch change without an onset (decay flip)', () => {
     const t = new NoteTracker();
-    const events = run(t, [f(0, A4), f(16, A4), f(32, A4), f(48, B4), f(64, B4), f(80, B4)]);
+    const frames = [f(0, A4), f(16, A4), f(32, A4)];
+    for (let time = 48; time <= 160; time += 16) {
+      frames.push(f(time, B4, 0.09));
+    }
+    const events = run(t, frames);
+    expect(events).toHaveLength(1);
+    expect(events[0].midi).toBe(69);
+  });
+
+  it('emits a new pitch after an onset', () => {
+    const t = new NoteTracker();
+    const events = run(t, [
+      f(0, A4), f(16, A4), f(32, A4),
+      f(150, B4, 0.1),
+      f(166, B4, 0.3), f(182, B4, 0.3), f(198, B4, 0.3),
+    ]);
     expect(events.map((e) => e.midi)).toEqual([69, 71]);
   });
 

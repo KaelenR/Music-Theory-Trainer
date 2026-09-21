@@ -99,7 +99,7 @@ export class NoteTracker {
       this.count = 1;
     }
 
-    if (this.count >= o.stableFrames && midi !== this.emitted) {
+    if (this.count >= o.stableFrames && this.emitted === null) {
       this.emitted = midi;
       this.lastEmitTime = f.time;
       this.trough = f.rms;

@@ -13,9 +13,11 @@
     <button onclick={onCalibrate}>Calibrate &amp; mic test</button>
   </div>
   <p class="tuning">Tuning: {tuningOffset === 0 ? 'A440' : `${tuningOffset > 0 ? '+' : ''}${tuningOffset} cents`}</p>
+  <p class="build">Build {__BUILD__}</p>
 </main>
 
 <style>
   .actions { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
   .tuning { color: var(--muted); }
+  .build { color: var(--muted); font-size: 0.8rem; }
 </style>

@@ -15,6 +15,8 @@
 
   let mic: Mic | null = null;
   const tracker = new NoteTracker();
+  let starting = false;
+  let destroyed = false;
   let running = $state(false);
   let error = $state('');
   let frame = $state<PitchFrame | null>(null);
@@ -31,13 +33,22 @@
   );
 
   async function startMic() {
+    if (starting || running) return;
+    starting = true;
     error = '';
+    let m: Mic;
     try {
-      mic = await Mic.open();
+      m = await Mic.open();
     } catch (e) {
       error = micErrorMessage(e);
+      starting = false;
       return;
     }
+    if (destroyed) {
+      void m.close();
+      return;
+    }
+    mic = m;
     tracker.setTuningOffset(tuningOffset);
     mic.onFrame = (f) => {
       frame = f;
@@ -47,6 +58,7 @@
     };
     mic.start();
     running = true;
+    starting = false;
   }
 
   function calibrate() {
@@ -83,6 +95,7 @@
   }
 
   onDestroy(() => {
+    destroyed = true;
     clearTimeout(calTimer);
     void mic?.close();
   });

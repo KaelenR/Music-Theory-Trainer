@@ -3,7 +3,7 @@
   import Staff from './Staff.svelte';
   import { Mic } from '../audio/mic';
   import { micErrorMessage } from '../audio/micErrors';
-  import { NoteTracker } from '../audio/noteTracker';
+  import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
   import type { DrillConfig } from '../drill/config';
   import { createNoteReading } from '../drill/noteReading';
   import { DrillSession, type SessionStats } from '../drill/session';
@@ -29,6 +29,9 @@
   let mic: Mic | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastSound = 0;
+  let starting = false;
+  let destroyed = false;
+  let wakeLock: WakeLockSentinel | null = null;
 
   let started = $state(false);
   let suspended = $state(false);
@@ -56,30 +59,54 @@
     answered = s.asked;
   }
 
-  async function start() {
-    error = '';
+  function onFrame(f: PitchFrame) {
+    level = f.rms;
+    if (f.rms >= 0.01) {
+      lastSound = f.time;
+      silentHint = false;
+    } else if (session.state === 'asking' && f.time - lastSound > SILENCE_HINT_MS) {
+      silentHint = true;
+    }
+    const ev = tracker.push(f);
+    if (ev) onNote(ev.midi, ev.time);
+  }
+
+  async function lockScreen() {
     try {
-      mic = await Mic.open();
+      wakeLock = (await navigator.wakeLock?.request('screen')) ?? null;
+    } catch {
+      wakeLock = null;
+    }
+  }
+
+  async function start() {
+    if (starting || started) return;
+    starting = true;
+    error = '';
+    let m: Mic;
+    try {
+      m = await Mic.open();
     } catch (e) {
       error = micErrorMessage(e);
+      starting = false;
       return;
     }
-    mic.onFrame = (f) => {
-      level = f.rms;
-      if (f.rms >= 0.01) {
-        lastSound = f.time;
-        silentHint = false;
-      } else if (session.state === 'asking' && f.time - lastSound > SILENCE_HINT_MS) {
-        silentHint = true;
-      }
-      const ev = tracker.push(f);
-      if (ev) onNote(ev.midi, ev.time);
+    if (destroyed) {
+      void m.close();
+      return;
+    }
+    mic = m;
+    mic.onFrame = onFrame;
+    mic.onInterrupted = () => {
+      if (started) suspended = true;
     };
     session.start();
     showQuestion();
     lastSound = performance.now();
     mic.start();
     started = true;
+    starting = false;
+    await lockScreen();
   }
 
   function onNote(midi: number, time: number) {
@@ -93,11 +120,13 @@
       feedback = 'correct';
       message = '';
       view = { ...view, highlight: 'correct' };
+      clearTimeout(timer);
       timer = setTimeout(next, 450);
     } else if (session.state === 'revealing') {
       feedback = 'wrong';
       message = `You played ${played}. Answer: ${displayName(q.notes[0])}`;
       view = { ...view, highlight: 'answer' };
+      clearTimeout(timer);
       timer = setTimeout(next, REVEAL_MS);
     } else {
       feedback = 'wrong';
@@ -125,6 +154,8 @@
   function finish() {
     clearTimeout(timer);
     session.finish();
+    void wakeLock?.release();
+    wakeLock = null;
     void mic?.close();
     mic = null;
     const stats = session.stats();
@@ -133,11 +164,32 @@
   }
 
   function onVisibility() {
-    if (document.visibilityState === 'visible' && mic && mic.state !== 'running') suspended = true;
+    if (document.visibilityState !== 'visible') return;
+    if (started && session.state !== 'done') void lockScreen();
+    if (mic && !mic.healthy) suspended = true;
   }
 
   async function resume() {
-    await mic?.resume();
+    try {
+      await mic?.resume();
+    } catch {
+      // handled by the health check below
+    }
+    if (!mic?.healthy) {
+      try {
+        void mic?.close();
+        const m = await Mic.open();
+        mic = m;
+        mic.onFrame = onFrame;
+        mic.onInterrupted = () => {
+          if (started) suspended = true;
+        };
+        mic.start();
+      } catch (e) {
+        error = micErrorMessage(e);
+        return;
+      }
+    }
     tracker.reset();
     lastSound = performance.now();
     suspended = false;
@@ -145,8 +197,11 @@
 
   onMount(() => document.addEventListener('visibilitychange', onVisibility));
   onDestroy(() => {
+    destroyed = true;
     document.removeEventListener('visibilitychange', onVisibility);
     clearTimeout(timer);
+    void wakeLock?.release();
+    wakeLock = null;
     void mic?.close();
   });
 </script>

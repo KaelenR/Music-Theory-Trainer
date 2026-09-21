@@ -5,6 +5,7 @@ const FRAME_SIZE = 2048;
 
 export class Mic {
   onFrame: ((f: PitchFrame) => void) | null = null;
+  onInterrupted: (() => void) | null = null;
 
   private ctx: AudioContext;
   private stream: MediaStream;
@@ -19,6 +20,14 @@ export class Mic {
     this.analyser = analyser;
     this.buf = new Float32Array(FRAME_SIZE);
     this.detector = PitchDetector.forFloat32Array(FRAME_SIZE);
+
+    this.ctx.onstatechange = () => {
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.onInterrupted?.();
+    };
+    this.stream.getAudioTracks().forEach((t) => {
+      t.onended = () => this.onInterrupted?.();
+      t.onmute = () => this.onInterrupted?.();
+    });
   }
 
   /** Must be called from a user tap handler (iOS requirement). */
@@ -44,6 +53,13 @@ export class Mic {
 
   get state(): string {
     return this.ctx.state;
+  }
+
+  get healthy(): boolean {
+    return (
+      this.ctx.state === 'running' &&
+      this.stream.getAudioTracks().some((t) => t.readyState === 'live' && t.enabled && !t.muted)
+    );
   }
 
   async resume(): Promise<void> {
