@@ -39,7 +39,7 @@ export class NoteTracker {
   private count = 0;
   private emitted: number | null = null;
   private lastEmitTime = -Infinity;
-  private prevRms = 0;
+  private trough = Infinity;
 
   constructor(opts: Partial<TrackerOptions> = {}) {
     this.opts = { ...DEFAULT_TRACKER_OPTIONS, ...opts };
@@ -58,16 +58,28 @@ export class NoteTracker {
   push(f: PitchFrame): NoteEvent | null {
     const o = this.opts;
     const silent = f.rms < o.silenceRms;
-    const onset = !silent && this.prevRms > 0 && f.rms > this.prevRms * o.onsetRatio;
-    this.prevRms = f.rms;
 
     if (silent) {
       this.reset();
+      this.trough = Infinity;
       return null;
     }
-    if (onset && f.time - this.lastEmitTime >= o.rearmMs) this.reset();
+
+    const onset = this.trough !== Infinity && f.rms > this.trough * o.onsetRatio;
+    if (onset) {
+      this.trough = f.rms;
+      if (f.time - this.lastEmitTime >= o.rearmMs) this.reset();
+    } else {
+      this.trough = Math.min(this.trough, f.rms);
+    }
 
     if (f.clarity < o.clarityMin) {
+      this.candidate = null;
+      this.count = 0;
+      return null;
+    }
+
+    if (!(f.freq > 0) || !Number.isFinite(f.freq)) {
       this.candidate = null;
       this.count = 0;
       return null;
@@ -90,6 +102,7 @@ export class NoteTracker {
     if (this.count >= o.stableFrames && midi !== this.emitted) {
       this.emitted = midi;
       this.lastEmitTime = f.time;
+      this.trough = f.rms;
       return { midi, cents, time: f.time };
     }
     return null;

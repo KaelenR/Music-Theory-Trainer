@@ -75,4 +75,30 @@ describe('NoteTracker', () => {
     expect(events[0].midi).toBe(69);
     expect(Math.abs(events[0].cents)).toBeLessThan(1);
   });
+
+  it('re-emits a same-note re-strike that ramps up gradually over a ringing note', () => {
+    const t = new NoteTracker();
+    const events = run(t, [
+      f(0, A4, 0.3), f(16, A4, 0.3), f(32, A4, 0.3),
+      f(150, A4, 0.25), f(166, A4, 0.20), f(182, A4, 0.16), f(198, A4, 0.13),
+      f(214, A4, 0.17), f(230, A4, 0.22), f(246, A4, 0.28), f(262, A4, 0.28), f(278, A4, 0.28),
+    ]);
+    expect(events).toHaveLength(2);
+    expect(events[1].time).toBeGreaterThan(214);
+  });
+
+  it('does not re-trigger on a sustained louder note after an ignored onset', () => {
+    const t = new NoteTracker();
+    const frames = [f(0, A4, 0.1), f(16, A4, 0.1), f(32, A4, 0.1)];
+    for (let time = 48; time <= 400; time += 16) {
+      frames.push(f(time, A4, 0.3));
+    }
+    const events = run(t, frames);
+    expect(events).toHaveLength(1);
+  });
+
+  it('ignores frames with non-positive frequency', () => {
+    const t = new NoteTracker();
+    expect(run(t, [f(0, 0, 0.1, 0.95), f(16, 0, 0.1, 0.95), f(32, 0, 0.1, 0.95)])).toHaveLength(0);
+  });
 });
