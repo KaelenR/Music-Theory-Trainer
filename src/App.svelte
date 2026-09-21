@@ -1,12 +1,21 @@
 <script lang="ts">
-  import Staff from './ui/Staff.svelte';
-  import { parseNote } from './music/note';
+  import Home from './ui/Home.svelte';
+  import Calibrate from './ui/Calibrate.svelte';
+  import { getSetting } from './progress/db';
+
+  type Screen = { name: 'home' } | { name: 'calibrate' };
+
+  let screen: Screen = $state({ name: 'home' });
+  let tuningOffset = $state(0);
+  getSetting('tuningOffsetCents', 0).then((v) => (tuningOffset = v));
 </script>
 
-<main class="screen">
-  <h1>Staff demo</h1>
-  <Staff view={{ clef: 'treble', notes: [parseNote('F#5')] }} />
-  <Staff view={{ clef: 'bass', notes: [parseNote('Bb2')], highlight: 'correct' }} />
-  <Staff view={{ clef: 'grand', notes: [parseNote('E2'), parseNote('C4'), parseNote('A5')], highlight: 'answer' }} />
-  <Staff view={{ clef: 'treble', notes: [parseNote('C6')], highlight: 'wrong' }} />
-</main>
+{#if screen.name === 'home'}
+  <Home {tuningOffset} onDrill={null} onCalibrate={() => (screen = { name: 'calibrate' })} />
+{:else if screen.name === 'calibrate'}
+  <Calibrate
+    {tuningOffset}
+    onTuningChange={(c) => (tuningOffset = c)}
+    onBack={() => (screen = { name: 'home' })}
+  />
+{/if}
