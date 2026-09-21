@@ -22,6 +22,7 @@
   let calibrating = $state(false);
   let calMessage = $state('');
   let samples: CalibrationSample[] = [];
+  let calTimer: ReturnType<typeof setTimeout> | undefined;
 
   const live = $derived(
     frame && frame.clarity >= 0.9 && frame.rms >= 0.01
@@ -52,28 +53,37 @@
     samples = [];
     calibrating = true;
     calMessage = 'Play and hold A4 (the A above middle C)…';
-    setTimeout(async () => {
+    calTimer = setTimeout(async () => {
       calibrating = false;
       const offset = computeTuningOffset(samples);
       if (offset === null) {
         calMessage = "Couldn't hear a steady A4. Try again, a little louder.";
         return;
       }
-      await setSetting('tuningOffsetCents', offset);
       tracker.setTuningOffset(offset);
       onTuningChange(offset);
       calMessage = `Saved: your piano is ${offset >= 0 ? '+' : ''}${offset} cents from A440.`;
+      try {
+        await setSetting('tuningOffsetCents', offset);
+      } catch {
+        calMessage += " (Couldn't save. It will reset next time the app opens.)";
+      }
     }, 2500);
   }
 
   async function resetTuning() {
-    await setSetting('tuningOffsetCents', 0);
     tracker.setTuningOffset(0);
     onTuningChange(0);
     calMessage = 'Reset to A440.';
+    try {
+      await setSetting('tuningOffsetCents', 0);
+    } catch {
+      calMessage += " (Couldn't save. It will reset next time the app opens.)";
+    }
   }
 
   onDestroy(() => {
+    clearTimeout(calTimer);
     void mic?.close();
   });
 </script>
