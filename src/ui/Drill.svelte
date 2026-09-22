@@ -4,15 +4,17 @@
   import { Mic } from '../audio/mic';
   import { micErrorMessage } from '../audio/micErrors';
   import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
+  import { meterPercent, type Levels } from '../audio/calibration';
   import type { DrillConfig } from '../drill/config';
   import { createNoteReading } from '../drill/noteReading';
   import { DrillSession, type SessionStats } from '../drill/session';
   import { displayName, fromMidi } from '../music/note';
   import type { StaffView } from '../staff/types';
 
-  let { config, tuningOffset, onFinish, onExit }: {
+  let { config, tuningOffset, levels, onFinish, onExit }: {
     config: DrillConfig;
     tuningOffset: number;
+    levels: Levels;
     onFinish: (stats: SessionStats) => void;
     onExit: () => void;
   } = $props();
@@ -21,9 +23,10 @@
   // Spec calls for showing the answer "~1 s" before moving on in move-on mode.
   const REVEAL_MS = 1000;
 
-  // Config and tuning are fixed for the lifetime of a drill.
+  // Config, tuning and levels are fixed for the lifetime of a drill.
   const session = new DrillSession(createNoteReading(config.exercise), config.session);
-  const tracker = new NoteTracker({ tuningOffsetCents: tuningOffset });
+  const tracker = new NoteTracker({ tuningOffsetCents: tuningOffset, silenceRms: levels.silenceRms });
+  const silenceRms = levels.silenceRms;
   const lengthLabel = config.session.length === 'endless' ? '' : ` / ${config.session.length}`;
 
   let mic: Mic | null = null;
@@ -61,7 +64,7 @@
 
   function onFrame(f: PitchFrame) {
     level = f.rms;
-    if (f.rms >= 0.01) {
+    if (f.rms >= silenceRms) {
       lastSound = f.time;
       silentHint = false;
     } else if (session.state === 'asking' && f.time - lastSound > SILENCE_HINT_MS) {
@@ -210,7 +213,7 @@
   <header>
     <button onclick={finish}>✕ End</button>
     <span class="score">{correct} correct · {answered}{lengthLabel}</span>
-    <div class="level"><div style="width: {Math.min(100, level * 400)}%"></div></div>
+    <div class="level"><div style="width: {meterPercent(level, levels)}%"></div></div>
   </header>
 
   {#if !started}

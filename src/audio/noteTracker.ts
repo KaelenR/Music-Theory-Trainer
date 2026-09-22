@@ -1,4 +1,5 @@
 import { freqToMidi } from '../music/note';
+import { CLARITY_MIN, DEFAULT_LEVELS } from './calibration';
 
 export interface PitchFrame {
   time: number;
@@ -24,10 +25,10 @@ export interface TrackerOptions {
 }
 
 export const DEFAULT_TRACKER_OPTIONS: TrackerOptions = {
-  clarityMin: 0.9,
+  clarityMin: CLARITY_MIN,
   stableFrames: 3,
   centsTolerance: 40,
-  silenceRms: 0.01,
+  silenceRms: DEFAULT_LEVELS.silenceRms,
   onsetRatio: 1.5,
   rearmMs: 100,
   tuningOffsetCents: 0,
@@ -47,6 +48,10 @@ export class NoteTracker {
 
   setTuningOffset(cents: number): void {
     this.opts.tuningOffsetCents = cents;
+  }
+
+  setSilenceRms(rms: number): void {
+    this.opts.silenceRms = rms;
   }
 
   reset(): void {

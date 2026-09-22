@@ -3,15 +3,23 @@
   import { Mic } from '../audio/mic';
   import { micErrorMessage } from '../audio/micErrors';
   import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
-  import { computeTuningOffset, type CalibrationSample } from '../audio/calibration';
+  import {
+    calibrateFrom, CLARITY_MIN, formatDb, meterPercent, type Levels, type PianoSample,
+  } from '../audio/calibration';
   import { displayName, freqToMidi, fromMidi } from '../music/note';
   import { setSetting } from '../progress/db';
 
-  let { tuningOffset, onTuningChange, onBack }: {
+  let { tuningOffset, levels, onTuningChange, onLevelsChange, onBack }: {
     tuningOffset: number;
+    levels: Levels;
     onTuningChange: (cents: number) => void;
+    onLevelsChange: (levels: Levels) => void;
     onBack: () => void;
   } = $props();
+
+  const QUIET_MS = 1200;
+  const HOLD_MS = 2500;
+  const SAVE_FAILED = " (Couldn't save. It will reset next time the app opens.)";
 
   let mic: Mic | null = null;
   const tracker = new NoteTracker();
@@ -21,13 +29,14 @@
   let error = $state('');
   let frame = $state<PitchFrame | null>(null);
   let heard: string[] = $state([]);
-  let calibrating = $state(false);
+  let calPhase = $state<'idle' | 'quiet' | 'piano'>('idle');
   let calMessage = $state('');
-  let samples: CalibrationSample[] = [];
+  let quietRms: number[] = [];
+  let pianoSamples: PianoSample[] = [];
   let calTimer: ReturnType<typeof setTimeout> | undefined;
 
   const live = $derived(
-    frame && frame.clarity >= 0.9 && frame.rms >= 0.01
+    frame && frame.clarity >= CLARITY_MIN && frame.rms >= levels.silenceRms
       ? freqToMidi(frame.freq, 440 * 2 ** (tuningOffset / 1200))
       : null,
   );
@@ -50,9 +59,11 @@
     }
     mic = m;
     tracker.setTuningOffset(tuningOffset);
+    tracker.setSilenceRms(levels.silenceRms);
     mic.onFrame = (f) => {
       frame = f;
-      if (calibrating) samples.push({ freq: f.freq, clarity: f.clarity });
+      if (calPhase === 'quiet') quietRms.push(f.rms);
+      else if (calPhase === 'piano') pianoSamples.push({ freq: f.freq, clarity: f.clarity, rms: f.rms });
       const ev = tracker.push(f);
       if (ev) heard = [displayName(fromMidi(ev.midi)), ...heard].slice(0, 8);
     };
@@ -62,25 +73,39 @@
   }
 
   function calibrate() {
-    samples = [];
-    calibrating = true;
-    calMessage = 'Play and hold A4 (the A above middle C)…';
-    calTimer = setTimeout(async () => {
-      calibrating = false;
-      const offset = computeTuningOffset(samples);
-      if (offset === null) {
-        calMessage = "Couldn't hear a steady A4. Try again, a little louder.";
-        return;
-      }
-      tracker.setTuningOffset(offset);
-      onTuningChange(offset);
-      calMessage = `Saved: your piano is ${offset >= 0 ? '+' : ''}${offset} cents from A440.`;
-      try {
-        await setSetting('tuningOffsetCents', offset);
-      } catch {
-        calMessage += " (Couldn't save. It will reset next time the app opens.)";
-      }
-    }, 2500);
+    quietRms = [];
+    pianoSamples = [];
+    calPhase = 'quiet';
+    calMessage = 'Stay quiet for a moment…';
+    calTimer = setTimeout(() => {
+      calPhase = 'piano';
+      calMessage = 'Now play and hold A4 (the A above middle C)…';
+      calTimer = setTimeout(finishCalibration, HOLD_MS);
+    }, QUIET_MS);
+  }
+
+  async function finishCalibration() {
+    calPhase = 'idle';
+    const result = calibrateFrom(quietRms, pianoSamples);
+    if (result === null) {
+      calMessage = "Couldn't hear a steady A4. Try again, a little louder.";
+      return;
+    }
+    const { tuningOffsetCents: offset, levels: measured } = result;
+    tracker.setTuningOffset(offset);
+    tracker.setSilenceRms(measured.silenceRms);
+    onTuningChange(offset);
+    onLevelsChange(measured);
+    calMessage = `Saved: your piano is ${offset >= 0 ? '+' : ''}${offset} cents from A440, at ${formatDb(measured.pianoRms)} on the iPad.`;
+    if (!measured.clearOfNoise) {
+      calMessage += ' It is barely louder than the room here, so move the iPad closer to the piano for reliable detection.';
+    }
+    try {
+      await setSetting('tuningOffsetCents', offset);
+      await setSetting('levels', measured);
+    } catch {
+      calMessage += SAVE_FAILED;
+    }
   }
 
   async function resetTuning() {
@@ -90,7 +115,7 @@
     try {
       await setSetting('tuningOffsetCents', 0);
     } catch {
-      calMessage += " (Couldn't save. It will reset next time the app opens.)";
+      calMessage += SAVE_FAILED;
     }
   }
 
@@ -109,7 +134,7 @@
     <button class="primary big" onclick={startMic}>Start microphone</button>
     {#if error}<p class="error">{error}</p>{/if}
   {:else}
-    <div class="level"><div style="width: {Math.min(100, (frame?.rms ?? 0) * 400)}%"></div></div>
+    <div class="level"><div style="width: {meterPercent(frame?.rms ?? 0, levels)}%"></div></div>
     <p class="live">
       {#if live}
         <strong>{displayName(fromMidi(live.midi))}</strong>
@@ -119,12 +144,12 @@
       {/if}
     </p>
     <p class="muted">
-      freq {frame?.freq.toFixed(1) ?? '–'} Hz · clarity {frame?.clarity.toFixed(2) ?? '–'} · level {frame?.rms.toFixed(3) ?? '–'}
+      freq {frame?.freq.toFixed(1) ?? '–'} Hz · clarity {frame?.clarity.toFixed(2) ?? '–'} · level {frame ? formatDb(frame.rms) : '–'}
     </p>
     <p>Detected notes: {heard.join('  ') || '(play something)'}</p>
 
     <div class="actions">
-      <button class="primary" onclick={calibrate} disabled={calibrating}>Calibrate with A4</button>
+      <button class="primary" onclick={calibrate} disabled={calPhase !== 'idle'}>Calibrate with A4</button>
       <button onclick={resetTuning}>Reset to A440</button>
     </div>
     {#if calMessage}<p>{calMessage}</p>{/if}
