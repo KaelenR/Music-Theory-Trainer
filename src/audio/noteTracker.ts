@@ -1,5 +1,6 @@
 import { freqToMidi } from '../music/note';
 import { CLARITY_MIN, DEFAULT_LEVELS } from './calibration';
+import { OnsetDetector } from './onset';
 
 export interface PitchFrame {
   time: number;
@@ -39,11 +40,11 @@ export class NoteTracker {
   private candidate: number | null = null;
   private count = 0;
   private emitted: number | null = null;
-  private lastEmitTime = -Infinity;
-  private trough = Infinity;
+  private onset: OnsetDetector;
 
   constructor(opts: Partial<TrackerOptions> = {}) {
     this.opts = { ...DEFAULT_TRACKER_OPTIONS, ...opts };
+    this.onset = new OnsetDetector(this.opts);
   }
 
   setTuningOffset(cents: number): void {
@@ -52,6 +53,7 @@ export class NoteTracker {
 
   setSilenceRms(rms: number): void {
     this.opts.silenceRms = rms;
+    this.onset.setSilenceRms(rms);
   }
 
   reset(): void {
@@ -62,21 +64,12 @@ export class NoteTracker {
 
   push(f: PitchFrame): NoteEvent | null {
     const o = this.opts;
-    const silent = f.rms < o.silenceRms;
-
-    if (silent) {
+    const state = this.onset.push(f.rms, f.time);
+    if (state === 'silent') {
       this.reset();
-      this.trough = Infinity;
       return null;
     }
-
-    const onset = this.trough !== Infinity && f.rms > this.trough * o.onsetRatio;
-    if (onset) {
-      this.trough = f.rms;
-      if (f.time - this.lastEmitTime >= o.rearmMs) this.reset();
-    } else {
-      this.trough = Math.min(this.trough, f.rms);
-    }
+    if (state === 'onset') this.reset();
 
     if (f.clarity < o.clarityMin) {
       this.candidate = null;
@@ -106,8 +99,7 @@ export class NoteTracker {
 
     if (this.count >= o.stableFrames && this.emitted === null) {
       this.emitted = midi;
-      this.lastEmitTime = f.time;
-      this.trough = f.rms;
+      this.onset.markEmitted(f.rms, f.time);
       return { midi, cents, time: f.time };
     }
     return null;
