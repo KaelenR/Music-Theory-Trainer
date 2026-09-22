@@ -1,39 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { DEFAULT_DRILL_CONFIG, type DrillConfig } from '../drill/config';
-  import { candidateNotes, CLEF_DEFAULT_RANGES, type NoteReadingSettings } from '../drill/noteReading';
-  import type { ExerciseSettings } from '../drill/exercises';
-  import { parseNote, STEPS, toMidi } from '../music/note';
-  import { getSetting, setSetting } from '../progress/db';
-  import type { StaffClef } from '../staff/types';
+  import { defaultConfig, type DrillConfig } from '../drill/config';
+  import { createExercise, EXERCISE_LABELS, setupKey, type ExerciseSettings, type ExerciseType } from '../drill/exercises';
   import type { MissMode, SessionLength } from '../drill/types';
+  import { getSetting, setSetting } from '../progress/db';
+  import ChordOptions from './options/ChordOptions.svelte';
+  import IntervalOptions from './options/IntervalOptions.svelte';
+  import NoteReadingOptions from './options/NoteReadingOptions.svelte';
+  import ScaleOptions from './options/ScaleOptions.svelte';
 
-  let { onStart, onBack }: { onStart: (c: DrillConfig) => void; onBack: () => void } = $props();
+  let { type, onStart, onBack }: { type: ExerciseType; onStart: (c: DrillConfig) => void; onBack: () => void } = $props();
 
-  let config: DrillConfig = $state(structuredClone(DEFAULT_DRILL_CONFIG));
-  // Task 6 replaces this screen with per-exercise-type setup; until then it only edits note reading.
-  const ex = $derived(config.exercise as Extract<ExerciseSettings, { type: 'note-reading' }>);
+  // The screen is remounted per exercise type, so reading `type` once is intended.
+  let config = $state<DrillConfig>(defaultConfig(type));
   onMount(async () => {
-    const saved = await getSetting<DrillConfig | null>('noteReadingSetup', null);
-    if (saved) {
-      const base = DEFAULT_DRILL_CONFIG.exercise as NoteReadingSettings;
-      const savedEx = saved.exercise as Partial<NoteReadingSettings>;
-      config = {
-        exercise: { ...base, ...savedEx, type: 'note-reading' },
-        session: { ...DEFAULT_DRILL_CONFIG.session, ...saved.session },
-      };
-    }
+    const saved = await getSetting<DrillConfig | null>(setupKey(type), null);
+    if (!saved) return;
+    const d = defaultConfig(type);
+    config = {
+      exercise: { ...d.exercise, ...saved.exercise, type } as ExerciseSettings,
+      session: { ...d.session, ...saved.session },
+    };
   });
 
-  const RANGE_NOTES: string[] = [];
-  for (let o = 2; o <= 6; o++) for (const s of STEPS) RANGE_NOTES.push(`${s}${o}`);
-  RANGE_NOTES.push('C7');
-
-  const CLEFS: { value: StaffClef; label: string }[] = [
-    { value: 'treble', label: 'Treble' },
-    { value: 'bass', label: 'Bass' },
-    { value: 'grand', label: 'Grand staff' },
-  ];
   const LENGTHS: { value: SessionLength; label: string }[] = [
     { value: 10, label: '10' },
     { value: 20, label: '20' },
@@ -45,46 +34,35 @@
     { value: 'move-on', label: 'Show answer & move on' },
   ];
 
-  const poolSize = $derived(
-    toMidi(parseNote(ex.low)) <= toMidi(parseNote(ex.high))
-      ? candidateNotes(ex).length
-      : 0,
-  );
-
-  function setClef(c: StaffClef) {
-    ex.clef = c;
-    ex.low = CLEF_DEFAULT_RANGES[c].low;
-    ex.high = CLEF_DEFAULT_RANGES[c].high;
-  }
+  const startable = $derived.by(() => {
+    try {
+      createExercise($state.snapshot(config.exercise) as ExerciseSettings);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
   function start() {
     const snap = $state.snapshot(config) as DrillConfig;
     onStart(snap);
-    void setSetting('noteReadingSetup', snap).catch(() => undefined);
+    void setSetting(setupKey(type), snap).catch(() => undefined);
   }
 </script>
 
-<main class="screen">
+<main class="screen setup">
   <button onclick={onBack}>← Back</button>
-  <h1>Note reading</h1>
+  <h1>{EXERCISE_LABELS[type]}</h1>
 
-  <section>
-    <h2>Clef</h2>
-    <div class="seg">
-      {#each CLEFS as c}
-        <button class:selected={ex.clef === c.value} onclick={() => setClef(c.value)}>{c.label}</button>
-      {/each}
-    </div>
-  </section>
-
-  <section>
-    <h2>Range</h2>
-    <label>From <select bind:value={ex.low}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
-    <label>to <select bind:value={ex.high}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
-    <span class="muted">{poolSize} notes</span>
-    <label class="check"><input type="checkbox" bind:checked={ex.accidentals} /> Sharps &amp; flats</label>
-    <label class="check"><input type="checkbox" bind:checked={ex.anyOctave} /> Accept any octave</label>
-  </section>
+  {#if config.exercise.type === 'note-reading'}
+    <NoteReadingOptions bind:settings={config.exercise} />
+  {:else if config.exercise.type === 'intervals'}
+    <IntervalOptions bind:settings={config.exercise} />
+  {:else if config.exercise.type === 'chords'}
+    <ChordOptions bind:settings={config.exercise} />
+  {:else}
+    <ScaleOptions bind:settings={config.exercise} />
+  {/if}
 
   <section>
     <h2>Length</h2>
@@ -96,25 +74,14 @@
   </section>
 
   <section>
-    <h2>On a wrong note</h2>
+    <h2>On a wrong answer</h2>
     <div class="seg">
       {#each MISS_MODES as m}
         <button class:selected={config.session.missMode === m.value} onclick={() => (config.session.missMode = m.value)}>{m.label}</button>
       {/each}
     </div>
-    <label class="check"><input type="checkbox" bind:checked={config.session.weighting} /> Repeat notes I miss more often</label>
+    <label class="check"><input type="checkbox" bind:checked={config.session.weighting} /> Repeat what I miss more often</label>
   </section>
 
-  <button class="primary big" disabled={poolSize === 0} onclick={start}>Start</button>
+  <button class="primary big" disabled={!startable} onclick={start}>Start</button>
 </main>
-
-<style>
-  section { margin: 1.25rem 0; }
-  h2 { font-size: 1rem; color: var(--muted); margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
-  .seg { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .seg button.selected { background: var(--fg); color: #fff; border-color: var(--fg); }
-  label { margin-right: 1rem; }
-  label.check { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; }
-  input[type='checkbox'] { width: 24px; height: 24px; min-height: 0; }
-  .muted { color: var(--muted); }
-</style>

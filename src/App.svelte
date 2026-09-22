@@ -7,12 +7,13 @@
   import { getSetting } from './progress/db';
   import { DEFAULT_LEVELS, type Levels } from './audio/calibration';
   import type { DrillConfig } from './drill/config';
+  import type { ExerciseType } from './drill/exercises';
   import type { SessionStats } from './drill/session';
 
   type Screen =
     | { name: 'home' }
     | { name: 'calibrate' }
-    | { name: 'setup' }
+    | { name: 'setup'; type: ExerciseType }
     | { name: 'drill'; config: DrillConfig; run: number }
     | { name: 'results'; config: DrillConfig; stats: SessionStats };
 
@@ -28,7 +29,7 @@
 </script>
 
 {#if screen.name === 'home'}
-  <Home {tuningOffset} onDrill={() => (screen = { name: 'setup' })} onCalibrate={() => (screen = { name: 'calibrate' })} />
+  <Home {tuningOffset} onDrill={(type) => (screen = { name: 'setup', type })} onCalibrate={() => (screen = { name: 'calibrate' })} />
 {:else if screen.name === 'calibrate'}
   <Calibrate
     {tuningOffset}
@@ -38,7 +39,10 @@
     onBack={home}
   />
 {:else if screen.name === 'setup'}
-  <DrillSetup onStart={drill} onBack={home} />
+  {@const s = screen}
+  {#key s.type}
+    <DrillSetup type={s.type} onStart={drill} onBack={home} />
+  {/key}
 {:else if screen.name === 'drill'}
   {@const s = screen}
   {#key s.run}

@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import Staff from './Staff.svelte';
-  import { Mic } from '../audio/mic';
-  import { micErrorMessage } from '../audio/micErrors';
-  import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
   import { meterPercent, type Levels } from '../audio/calibration';
+  import { ChordTracker } from '../audio/chordTracker';
+  import { Mic, type AudioFrame } from '../audio/mic';
+  import { micErrorMessage } from '../audio/micErrors';
+  import { NoteTracker } from '../audio/noteTracker';
+  import { describeReveal, heardPitchClasses, pitchClassNames } from '../drill/answer';
   import type { DrillConfig } from '../drill/config';
-  import { describeReveal } from '../drill/answer';
   import { createExercise } from '../drill/exercises';
   import { DrillSession, type SessionStats } from '../drill/session';
-  import { displayName, fromMidi } from '../music/note';
+  import type { Heard, Question } from '../drill/types';
+  import { displayName, fromMidi, type Note } from '../music/note';
   import type { Highlight, StaffView } from '../staff/types';
 
   let { config, tuningOffset, levels, onFinish, onExit }: {
@@ -21,13 +23,16 @@
   } = $props();
 
   const SILENCE_HINT_MS = 5000;
+  const CORRECT_MS = 450;
   // Spec calls for showing the answer "~1 s" before moving on in move-on mode.
   const REVEAL_MS = 1000;
+  const WRONG_FLASH_MS = 500;
 
   // Config, tuning and levels are fixed for the lifetime of a drill.
   const session = new DrillSession(createExercise(config.exercise), config.session);
-  const tracker = new NoteTracker({ tuningOffsetCents: tuningOffset, silenceRms: levels.silenceRms });
   const silenceRms = levels.silenceRms;
+  const tracker = new NoteTracker({ tuningOffsetCents: tuningOffset, silenceRms });
+  const chordTracker = new ChordTracker({ silenceRms });
   const lengthLabel = config.session.length === 'endless' ? '' : ` / ${config.session.length}`;
 
   let mic: Mic | null = null;
@@ -40,9 +45,9 @@
   let started = $state(false);
   let suspended = $state(false);
   let error = $state('');
-  // Typed via $state<T | null>(...) rather than `let view: StaffView | null = $state(null)`
-  // to avoid a TS 6 + svelte-check 4.7.6 narrowing bug that infers `never` for the latter form.
+  // Typed via $state<T | null>(...) to avoid a TS 6 + svelte-check 4.7.6 narrowing bug.
   let view = $state<StaffView | null>(null);
+  let prompt = $state('');
   let feedback: 'correct' | 'wrong' | null = $state(null);
   let message = $state('');
   let correct = $state(0);
@@ -50,15 +55,21 @@
   let level = $state(0);
   let silentHint = $state(false);
 
-  function showQuestion() {
-    const q = session.current!;
-    view = { clef: q.clef, keySignature: q.keySignature, items: q.display.map((notes) => ({ notes })) };
-    feedback = null;
-    message = '';
+  /** Staff for a question; the first `greenCount` items are marked correct, the rest get `highlight`. */
+  function staffView(q: Question, items: Note[][], highlight: Highlight = null, greenCount = 0): StaffView {
+    return {
+      clef: q.clef,
+      keySignature: q.keySignature,
+      items: items.map((notes, i) => ({ notes, highlight: i < greenCount ? 'correct' : highlight })),
+    };
   }
 
-  function withHighlight(v: StaffView, highlight: Highlight): StaffView {
-    return { ...v, items: v.items.map((item) => ({ ...item, highlight })) };
+  function showQuestion() {
+    const q = session.current!;
+    view = staffView(q, q.display);
+    prompt = q.prompt ?? '';
+    feedback = null;
+    message = '';
   }
 
   function syncScore() {
@@ -67,7 +78,7 @@
     answered = s.asked;
   }
 
-  function onFrame(f: PitchFrame) {
+  function onFrame(f: AudioFrame) {
     level = f.rms;
     if (f.rms >= silenceRms) {
       lastSound = f.time;
@@ -75,8 +86,52 @@
     } else if (session.state === 'asking' && f.time - lastSound > SILENCE_HINT_MS) {
       silentHint = true;
     }
-    const ev = tracker.push(f);
-    if (ev) onNote(ev.midi, ev.time);
+    const noteEvent = tracker.push(f);
+    if (noteEvent) onHeard({ kind: 'note', midi: noteEvent.midi, time: noteEvent.time });
+    const chordEvent = chordTracker.push(f);
+    if (chordEvent) onHeard({ kind: 'chord', chroma: chordEvent.chroma, time: chordEvent.time });
+  }
+
+  function heardText(h: Heard): string {
+    if (h.kind === 'note') return displayName(fromMidi(h.midi));
+    return pitchClassNames(heardPitchClasses(h.chroma)) || 'nothing clear';
+  }
+
+  function onHeard(h: Heard) {
+    const q = session.current;
+    const result = session.hear(h);
+    if (result === 'ignored' || !q) return;
+    syncScore();
+
+    if (result === 'progress') {
+      view = staffView(q, q.display, null, session.matched);
+      feedback = null;
+      message = '';
+      return;
+    }
+
+    clearTimeout(timer);
+    if (result === 'correct') {
+      feedback = 'correct';
+      message = '';
+      view = staffView(q, q.reveal, 'correct');
+      timer = setTimeout(next, CORRECT_MS);
+    } else if (session.state === 'revealing') {
+      feedback = 'wrong';
+      message = `You played ${heardText(h)}. Answer: ${describeReveal(q)}`;
+      view = staffView(q, q.reveal, 'answer');
+      timer = setTimeout(next, REVEAL_MS);
+    } else {
+      feedback = 'wrong';
+      message = `You played ${heardText(h)}. Try again.`;
+      view = staffView(q, q.display, 'wrong', session.matched);
+      timer = setTimeout(() => {
+        if (session.state === 'asking') {
+          feedback = null;
+          view = staffView(q, q.display, null, session.matched);
+        }
+      }, WRONG_FLASH_MS);
+    }
   }
 
   async function lockScreen() {
@@ -85,6 +140,15 @@
     } catch {
       wakeLock = null;
     }
+  }
+
+  function attach(m: Mic) {
+    mic = m;
+    mic.setTuningOffset(tuningOffset);
+    mic.onFrame = onFrame;
+    mic.onInterrupted = () => {
+      if (started) suspended = true;
+    };
   }
 
   async function start() {
@@ -103,52 +167,14 @@
       void m.close();
       return;
     }
-    mic = m;
-    mic.onFrame = onFrame;
-    mic.onInterrupted = () => {
-      if (started) suspended = true;
-    };
+    attach(m);
     session.start();
     showQuestion();
     lastSound = performance.now();
-    mic.start();
+    m.start();
     started = true;
     starting = false;
     await lockScreen();
-  }
-
-  function onNote(midi: number, time: number) {
-    const q = session.current;
-    const result = session.hear({ kind: 'note', midi, time });
-    if (result === 'ignored' || !q || !view) return;
-    if (result === 'progress') return;
-    syncScore();
-    const played = displayName(fromMidi(midi));
-
-    if (result === 'correct') {
-      feedback = 'correct';
-      message = '';
-      view = withHighlight(view, 'correct');
-      clearTimeout(timer);
-      timer = setTimeout(next, 450);
-    } else if (session.state === 'revealing') {
-      feedback = 'wrong';
-      message = `You played ${played}. Answer: ${describeReveal(q)}`;
-      view = withHighlight(view, 'answer');
-      clearTimeout(timer);
-      timer = setTimeout(next, REVEAL_MS);
-    } else {
-      feedback = 'wrong';
-      message = `You played ${played}. Try again.`;
-      view = withHighlight(view, 'wrong');
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (session.state === 'asking' && view) {
-          feedback = null;
-          view = withHighlight(view, null);
-        }
-      }, 500);
-    }
   }
 
   function next() {
@@ -188,18 +214,15 @@
       try {
         void mic?.close();
         const m = await Mic.open();
-        mic = m;
-        mic.onFrame = onFrame;
-        mic.onInterrupted = () => {
-          if (started) suspended = true;
-        };
-        mic.start();
+        attach(m);
+        m.start();
       } catch (e) {
         error = micErrorMessage(e);
         return;
       }
     }
     tracker.reset();
+    chordTracker.reset();
     lastSound = performance.now();
     suspended = false;
   }
@@ -228,13 +251,17 @@
       {#if error}<p class="error">{error}</p>{/if}
     </div>
   {:else}
+    {#if prompt}<p class="prompt">{prompt}</p>{/if}
     {#if view}<Staff {view} />{/if}
     <p class="message">{message}</p>
     {#if silentHint}<p class="hint">Can't hear the piano. Check that the mic isn't covered.</p>{/if}
   {/if}
 
   {#if suspended}
-    <div class="overlay"><button class="primary big" onclick={resume}>Tap to resume</button></div>
+    <div class="overlay">
+      <button class="primary big" onclick={resume}>Tap to resume</button>
+      {#if error}<p class="error">{error}</p>{/if}
+    </div>
   {/if}
 </div>
 
@@ -247,7 +274,8 @@
   .level { flex: 1; max-width: 200px; height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden; margin-left: auto; }
   .level div { height: 100%; background: var(--correct); }
   .center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
+  .prompt { text-align: center; font-size: 2rem; font-weight: 600; margin: 1rem 0 0; }
   .message { text-align: center; font-size: 1.5rem; min-height: 2rem; }
   .hint { text-align: center; color: var(--muted); }
-  .overlay { position: fixed; inset: 0; background: rgba(251, 250, 247, 0.9); display: flex; align-items: center; justify-content: center; }
+  .overlay { position: fixed; inset: 0; background: rgba(251, 250, 247, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; }
 </style>

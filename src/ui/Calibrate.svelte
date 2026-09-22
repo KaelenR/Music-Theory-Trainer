@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { Mic } from '../audio/mic';
+  import { ChordTracker } from '../audio/chordTracker';
+  import { Mic, type AudioFrame } from '../audio/mic';
   import { micErrorMessage } from '../audio/micErrors';
-  import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
+  import { NoteTracker } from '../audio/noteTracker';
   import {
     calibrateFrom, CLARITY_MIN, formatDb, meterPercent, type Levels, type PianoSample,
   } from '../audio/calibration';
-  import { displayName, freqToMidi, fromMidi } from '../music/note';
+  import { heardPitchClasses, pitchClassNames } from '../drill/answer';
+  import { displayName, freqToMidi, fromMidi, PITCH_CLASS_NAMES } from '../music/note';
   import { setSetting } from '../progress/db';
 
   let { tuningOffset, levels, onTuningChange, onLevelsChange, onBack }: {
@@ -23,12 +25,14 @@
 
   let mic: Mic | null = null;
   const tracker = new NoteTracker();
+  const chordTracker = new ChordTracker();
   let starting = false;
   let destroyed = false;
   let running = $state(false);
   let error = $state('');
-  let frame = $state<PitchFrame | null>(null);
+  let frame = $state<AudioFrame | null>(null);
   let heard: string[] = $state([]);
+  let chords: string[] = $state([]);
   let calPhase = $state<'idle' | 'quiet' | 'piano'>('idle');
   let calMessage = $state('');
   let quietRms: number[] = [];
@@ -40,6 +44,12 @@
       ? freqToMidi(frame.freq, 440 * 2 ** (tuningOffset / 1200))
       : null,
   );
+
+  const chromaBars = $derived.by(() => {
+    if (!frame || frame.rms < levels.silenceRms) return new Array(12).fill(0);
+    const max = Math.max(...frame.chroma);
+    return max > 0 ? Array.from(frame.chroma, (v) => (v / max) * 100) : new Array(12).fill(0);
+  });
 
   async function startMic() {
     if (starting || running) return;
@@ -60,12 +70,16 @@
     mic = m;
     tracker.setTuningOffset(tuningOffset);
     tracker.setSilenceRms(levels.silenceRms);
+    chordTracker.setSilenceRms(levels.silenceRms);
+    mic.setTuningOffset(tuningOffset);
     mic.onFrame = (f) => {
       frame = f;
       if (calPhase === 'quiet') quietRms.push(f.rms);
       else if (calPhase === 'piano') pianoSamples.push({ freq: f.freq, clarity: f.clarity, rms: f.rms });
       const ev = tracker.push(f);
       if (ev) heard = [displayName(fromMidi(ev.midi)), ...heard].slice(0, 8);
+      const chord = chordTracker.push(f);
+      if (chord) chords = [pitchClassNames(heardPitchClasses(chord.chroma)) || '?', ...chords].slice(0, 6);
     };
     mic.start();
     running = true;
@@ -94,6 +108,8 @@
     const { tuningOffsetCents: offset, levels: measured } = result;
     tracker.setTuningOffset(offset);
     tracker.setSilenceRms(measured.silenceRms);
+    chordTracker.setSilenceRms(measured.silenceRms);
+    mic?.setTuningOffset(offset);
     onTuningChange(offset);
     onLevelsChange(measured);
     calMessage = `Saved: your piano is ${offset >= 0 ? '+' : ''}${offset} cents from A440, at ${formatDb(measured.pianoRms)} on the iPad.`;
@@ -147,6 +163,12 @@
       freq {frame?.freq.toFixed(1) ?? '–'} Hz · clarity {frame?.clarity.toFixed(2) ?? '–'} · level {frame ? formatDb(frame.rms) : '–'}
     </p>
     <p>Detected notes: {heard.join('  ') || '(play something)'}</p>
+    <div class="chroma">
+      {#each PITCH_CLASS_NAMES as name, pc}
+        <div class="bar"><div class="fill" style="height: {chromaBars[pc]}%"></div><span>{name}</span></div>
+      {/each}
+    </div>
+    <p>Detected chords: {chords.join(' · ') || '(play a chord)'}</p>
 
     <div class="actions">
       <button class="primary" onclick={calibrate} disabled={calPhase !== 'idle'}>Calibrate with A4</button>
@@ -163,4 +185,8 @@
   .live span { font-size: 1.5rem; color: var(--muted); }
   .muted { color: var(--muted); }
   .actions { display: flex; gap: 1rem; }
+  .chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: 120px; margin: 1rem 0; }
+  .bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+  .fill { width: 100%; background: var(--accent); }
+  .bar span { font-size: 0.75rem; padding: 2px 0; }
 </style>
