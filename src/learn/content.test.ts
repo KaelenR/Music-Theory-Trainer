@@ -41,4 +41,9 @@ describe('curriculum content', () => {
       });
     });
   }
+
+  it('has all 29 lessons in 7 units', () => {
+    expect(UNITS).toHaveLength(7);
+    expect(lessons).toHaveLength(29);
+  });
 });
