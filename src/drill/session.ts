@@ -1,11 +1,6 @@
-import { matchChord, matchNote } from './answer';
+import { hasSound, matchChord, matchNote } from './answer';
 import type { Rng } from './random';
 import type { Exercise, Heard, HearResult, MissMode, Question, QuestionLogEntry, SessionLength } from './types';
-
-function hasSound(chroma: ArrayLike<number>): boolean {
-  for (let pc = 0; pc < 12; pc++) if (chroma[pc] > 0) return true;
-  return false;
-}
 
 export type SessionState ='idle' | 'asking' | 'answered' | 'revealing' | 'done';
 

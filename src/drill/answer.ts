@@ -16,6 +16,11 @@ export function matchNote(
   return matched + 1 === answer.midis.length ? 'correct' : 'progress';
 }
 
+export function hasSound(chroma: ArrayLike<number>): boolean {
+  for (let pc = 0; pc < 12; pc++) if (chroma[pc] > 0) return true;
+  return false;
+}
+
 export interface ChordThresholds {
   /** An expected pitch class must reach this fraction of the strongest one. */
   present: number;
