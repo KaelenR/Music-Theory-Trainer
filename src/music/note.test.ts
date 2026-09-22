@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  displayName, freqToMidi, fromMidi, midiToFreq, noteName, parseNote, pitchClass, toMidi,
+  displayName, freqToMidi, fromMidi, midiToFreq, noteName, parseNote, pitchClass, toMidi, PITCH_CLASS_NAMES, pitchName,
 } from './note';
 
 describe('toMidi', () => {
@@ -74,5 +74,15 @@ describe('freqToMidi / midiToFreq', () => {
   it('inverts', () => {
     expect(midiToFreq(69)).toBe(440);
     expect(midiToFreq(60)).toBeCloseTo(261.6256, 3);
+  });
+});
+
+describe('pitch names', () => {
+  it('names pitch classes and notes without octave', () => {
+    expect(PITCH_CLASS_NAMES).toHaveLength(12);
+    expect(PITCH_CLASS_NAMES[6]).toBe('F♯');
+    expect(pitchName(parseNote('F#4'))).toBe('F♯');
+    expect(pitchName(parseNote('Bb3'))).toBe('B♭');
+    expect(pitchName(parseNote('C5'))).toBe('C');
   });
 });

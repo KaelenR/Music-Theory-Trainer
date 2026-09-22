@@ -54,3 +54,11 @@ export function freqToMidi(freq: number, a4 = 440): { midi: number; cents: numbe
 export function midiToFreq(midi: number, a4 = 440): number {
   return a4 * 2 ** ((midi - 69) / 12);
 }
+
+export const PITCH_CLASS_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+
+/** Note name without octave, with musical symbols (e.g. "F♯"). */
+export function pitchName(n: Note): string {
+  const acc = n.alter === 1 ? '♯' : n.alter === -1 ? '♭' : '';
+  return `${n.step}${acc}`;
+}
