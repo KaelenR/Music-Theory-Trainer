@@ -10,13 +10,16 @@
 
   const WHITE_HEIGHT = 100;
   const BLACK_HEIGHT = 62;
+  const CORRECT_FILL = '#137a3c';
 
-  const r = $derived(range ?? keyboardRange([...highlight, ...Object.keys(marks).map(Number)]));
+  const r = $derived(
+    range ?? keyboardRange([...highlight, ...Object.keys(marks).map(Number), ...Object.keys(labels).map(Number)]),
+  );
   const layout = $derived(keyboardLayout(r.low, r.high));
 
   function fill(k: KeyRect): string {
     const mark = marks[k.midi];
-    if (mark === 'correct') return 'var(--correct)';
+    if (mark === 'correct') return CORRECT_FILL;
     if (mark === 'wrong') return 'var(--wrong)';
     if (highlight.includes(k.midi)) return 'var(--accent)';
     return k.black ? '#1f2a44' : '#ffffff';
