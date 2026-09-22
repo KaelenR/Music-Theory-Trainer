@@ -3,22 +3,36 @@ import type { Answer, Question } from './types';
 
 type NotesAnswer = Extract<Answer, { kind: 'notes' }>;
 
-export function matchNote(answer: NotesAnswer, matched: number, midi: number): 'progress' | 'correct' | 'wrong' {
-  const expected = answer.midis[matched];
-  const ok = answer.anyOctave ? pitchClass(midi) === pitchClass(expected) : midi === expected;
-  if (!ok) return 'wrong';
+export function matchNote(
+  answer: NotesAnswer,
+  matched: number,
+  midi: number,
+): 'progress' | 'correct' | 'wrong' | 'ignored' {
+  const same = (a: number, b: number) => (answer.anyOctave ? pitchClass(a) === pitchClass(b) : a === b);
+  if (!same(midi, answer.midis[matched])) {
+    // Re-striking (or the tracker re-reporting) the note just matched is not a mistake.
+    return matched > 0 && same(midi, answer.midis[matched - 1]) ? 'ignored' : 'wrong';
+  }
   return matched + 1 === answer.midis.length ? 'correct' : 'progress';
 }
 
 export interface ChordThresholds {
   /** An expected pitch class must reach this fraction of the strongest one. */
   present: number;
-  /** An unexpected pitch class must stay below this fraction. */
+  /**
+   * An expected pitch class a fifth above another chord tone must reach this instead, since that
+   * tone's 3rd harmonic already lands there.
+   */
+  shadowedPresent: number;
+  /** An unexpected pitch class must stay below this fraction (unless it is a fifth above a chord tone). */
   absent: number;
 }
 
 /** Starting values; tune against the real piano using the Calibrate screen's chroma bars. */
-export const CHORD_THRESHOLDS: ChordThresholds = { present: 0.35, absent: 0.6 };
+export const CHORD_THRESHOLDS: ChordThresholds = { present: 0.35, shadowedPresent: 0.7, absent: 0.6 };
+
+/** Pitch classes named in "You played …" messages must reach this fraction of the strongest one. */
+export const DISPLAY_CUTOFF = 0.6;
 
 function relative(chroma: ArrayLike<number>): number[] | null {
   let max = 0;
@@ -30,13 +44,18 @@ function relative(chroma: ArrayLike<number>): number[] | null {
 export function matchChord(pitchClasses: number[], chroma: ArrayLike<number>, t = CHORD_THRESHOLDS): boolean {
   const rel = relative(chroma);
   if (!rel) return false;
-  return rel.every((v, pc) => (pitchClasses.includes(pc) ? v >= t.present : v < t.absent));
+  // Each tone's 3rd harmonic lands a perfect fifth above it.
+  const shadowed = new Set(pitchClasses.map((p) => (p + 7) % 12));
+  return rel.every((v, pc) => {
+    if (pitchClasses.includes(pc)) return v >= (shadowed.has(pc) ? t.shadowedPresent : t.present);
+    return shadowed.has(pc) || v < t.absent;
+  });
 }
 
-export function heardPitchClasses(chroma: ArrayLike<number>, t = CHORD_THRESHOLDS): number[] {
+export function heardPitchClasses(chroma: ArrayLike<number>, cutoff = DISPLAY_CUTOFF): number[] {
   const rel = relative(chroma);
   if (!rel) return [];
-  return rel.flatMap((v, pc) => (v >= t.present ? [pc] : []));
+  return rel.flatMap((v, pc) => (v >= cutoff ? [pc] : []));
 }
 
 export function pitchClassNames(pcs: number[]): string {

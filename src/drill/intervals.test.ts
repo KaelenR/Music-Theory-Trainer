@@ -28,6 +28,12 @@ describe('createIntervals', () => {
     expect(q.answer).toEqual({ kind: 'notes', midis: [60, 64], anyOctave: false });
   });
 
+  it('leaves out the octave when harmonic, since pitch classes cannot confirm it', () => {
+    expect(() => createIntervals(settings({ intervals: ['P8'], harmonic: true }))).toThrow();
+    const ex = createIntervals(settings({ low: 'C4', high: 'C4', intervals: ['P8'] }));
+    expect(ex.nextQuestion(noWeights, seededRng(1), null).answer).toEqual({ kind: 'notes', midis: [60, 72], anyOctave: false });
+  });
+
   it('asks a harmonic interval as a two-note chord', () => {
     const ex = createIntervals(settings({ low: 'C4', high: 'C4', intervals: ['P5'], harmonic: true }));
     const q = ex.nextQuestion(noWeights, seededRng(1), null);

@@ -21,6 +21,19 @@ function spectrumAt(a4: number, ...midis: number[]): Float32Array {
 }
 const spectrum = (...midis: number[]) => spectrumAt(440, ...midis);
 
+/** Partial amplitudes closer to a real piano: the 2nd–4th harmonics stay strong. */
+const PIANO_PARTIALS = [1, 0.9, 0.7, 0.5, 0.35, 0.25, 0.15, 0.1];
+function pianoSpectrum(...midis: number[]): Float32Array {
+  const db = new Float32Array(N / 2).fill(-140);
+  for (const m of midis) {
+    PIANO_PARTIALS.forEach((amp, k) => {
+      const i = Math.round((midiToFreq(m, 440) * (k + 1)) / BIN_HZ);
+      if (i < db.length) db[i] = 20 * Math.log10(10 ** (db[i] / 20) + amp);
+    });
+  }
+  return db;
+}
+
 describe('chroma', () => {
   const map = createChromaMap(SR, N);
 
@@ -39,6 +52,32 @@ describe('chroma', () => {
     const c = chromaFromSpectrum(spectrum(60), map);
     expect(matchChord([0, 4, 7], c)).toBe(false);
     expect(matchChord([0, 7], c)).toBe(false);
+  });
+
+  describe('with piano-like partials', () => {
+    const pc = (...midis: number[]) => chromaFromSpectrum(pianoSpectrum(...midis), map);
+
+    it('recognizes diminished triads and a diminished seventh', () => {
+      expect(matchChord([0, 3, 6], pc(48, 51, 54))).toBe(true);
+      expect(matchChord([0, 3, 6], pc(60, 63, 66))).toBe(true);
+      expect(matchChord([2, 5, 8, 11], pc(59, 62, 65, 68))).toBe(true);
+    });
+
+    it('recognizes a harmonic minor third', () => {
+      expect(matchChord([0, 3], pc(60, 63))).toBe(true);
+    });
+
+    it('does not take a single note for a fifth', () => {
+      expect(matchChord([0, 7], pc(48))).toBe(false);
+      expect(matchChord([0, 7], pc(60))).toBe(false);
+    });
+
+    it('recognizes C major and rejects C minor', () => {
+      expect(matchChord([0, 4, 7], pc(48, 52, 55))).toBe(true);
+      expect(matchChord([0, 4, 7], pc(60, 64, 67))).toBe(true);
+      expect(matchChord([0, 4, 7], pc(48, 51, 55))).toBe(false);
+      expect(matchChord([0, 4, 7], pc(60, 63, 67))).toBe(false);
+    });
   });
 
   it('follows the tuning reference', () => {

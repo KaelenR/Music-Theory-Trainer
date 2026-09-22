@@ -2,7 +2,12 @@ import { matchChord, matchNote } from './answer';
 import type { Rng } from './random';
 import type { Exercise, Heard, HearResult, MissMode, Question, QuestionLogEntry, SessionLength } from './types';
 
-export type SessionState = 'idle' | 'asking' | 'answered' | 'revealing' | 'done';
+function hasSound(chroma: ArrayLike<number>): boolean {
+  for (let pc = 0; pc < 12; pc++) if (chroma[pc] > 0) return true;
+  return false;
+}
+
+export type SessionState ='idle' | 'asking' | 'answered' | 'revealing' | 'done';
 
 export interface SessionOptions {
   length: SessionLength;
@@ -51,15 +56,16 @@ export class DrillSession {
   hear(h: Heard): HearResult {
     if (this.state !== 'asking' || !this.current) return 'ignored';
     const answer = this.current.answer;
-    let step: 'progress' | 'correct' | 'wrong';
+    let step: HearResult;
     if (h.kind === 'note') {
       if (answer.kind !== 'notes') return 'ignored';
       step = matchNote(answer, this.matchedCount, h.midi);
     } else {
-      if (answer.kind !== 'chord') return 'ignored';
+      if (answer.kind !== 'chord' || !hasSound(h.chroma)) return 'ignored';
       step = matchChord(answer.pitchClasses, h.chroma) ? 'correct' : 'wrong';
     }
 
+    if (step === 'ignored') return 'ignored';
     if (step === 'progress') {
       this.matchedCount++;
       return 'progress';

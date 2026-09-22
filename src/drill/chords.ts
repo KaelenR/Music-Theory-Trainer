@@ -24,7 +24,10 @@ export const DEFAULT_CHORDS: ChordSettings = {
 
 const NATURAL_ROOTS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const ACCIDENTAL_ROOTS = ['Bb', 'Eb', 'Ab', 'Db', 'F#'];
-const ROOT_OCTAVE: Record<StaffClef, number> = { treble: 4, bass: 3, grand: 3 };
+/** Grand-staff roots from F up start in octave 3 so the chord straddles middle C. */
+const GRAND_LOW_ROOTS = new Set(['F', 'G', 'A', 'B', 'F#', 'Ab', 'Bb']);
+const rootOctave = (clef: StaffClef, root: string) =>
+  clef === 'treble' ? 4 : clef === 'bass' ? 3 : GRAND_LOW_ROOTS.has(root) ? 3 : 4;
 const INVERSION_NAMES = ['', '1st inversion', '2nd inversion', '3rd inversion'];
 
 export interface ChordCandidate {
@@ -36,7 +39,7 @@ export interface ChordCandidate {
 
 export function chordCandidates(s: ChordSettings): ChordCandidate[] {
   const roots = [...NATURAL_ROOTS, ...(s.accidentalRoots ? ACCIDENTAL_ROOTS : [])].map((r) =>
-    parseNote(`${r}${ROOT_OCTAVE[s.clef]}`),
+    parseNote(`${r}${rootOctave(s.clef, r)}`),
   );
   const out: ChordCandidate[] = [];
   for (const root of roots) {

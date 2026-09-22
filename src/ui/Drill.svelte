@@ -64,6 +64,20 @@
     };
   }
 
+  /**
+   * Staff while asking: notes already played are green and, when `wrong`, the note expected next is red.
+   * Questions that show nothing to play from (a key signature only) reveal the notes as they are played.
+   */
+  function askingView(q: Question, wrong = false): StaffView {
+    const matched = session.matched;
+    if (q.answer.kind === 'notes' && q.display.length === 0) {
+      return staffView(q, q.reveal.slice(0, matched), null, matched);
+    }
+    const v = staffView(q, q.display, null, matched);
+    if (wrong && matched < v.items.length) v.items[matched] = { ...v.items[matched], highlight: 'wrong' };
+    return v;
+  }
+
   function showQuestion() {
     const q = session.current!;
     view = staffView(q, q.display);
@@ -104,7 +118,7 @@
     syncScore();
 
     if (result === 'progress') {
-      view = staffView(q, q.display, null, session.matched);
+      view = askingView(q);
       feedback = null;
       message = '';
       return;
@@ -124,11 +138,11 @@
     } else {
       feedback = 'wrong';
       message = `You played ${heardText(h)}. Try again.`;
-      view = staffView(q, q.display, 'wrong', session.matched);
+      view = askingView(q, true);
       timer = setTimeout(() => {
         if (session.state === 'asking') {
           feedback = null;
-          view = staffView(q, q.display, null, session.matched);
+          view = askingView(q);
         }
       }, WRONG_FLASH_MS);
     }

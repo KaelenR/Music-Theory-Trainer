@@ -44,4 +44,18 @@ describe('createChords', () => {
     const c = pool.find((x) => x.key === 'C')!;
     expect(c.notes.map(noteName)).toEqual(['C4', 'E4', 'G4']);
   });
+
+  it('centers grand-staff chords around middle C', () => {
+    const pool = chordCandidates(settings({ clef: 'grand', qualities: ['maj'], accidentalRoots: true }));
+    const spell = (key: string) => pool.find((x) => x.key === key)!.notes.map(noteName);
+    expect(spell('C')).toEqual(['C4', 'E4', 'G4']);
+    expect(spell('F')).toEqual(['F3', 'A3', 'C4']);
+    expect(spell('E♭')[0]).toBe('Eb4');
+    expect(spell('B♭')[0]).toBe('Bb3');
+  });
+
+  it('keeps bass chords at octave 3', () => {
+    const pool = chordCandidates(settings({ clef: 'bass', qualities: ['maj'] }));
+    expect(pool.find((x) => x.key === 'C')!.notes.map(noteName)).toEqual(['C3', 'E3', 'G3']);
+  });
 });

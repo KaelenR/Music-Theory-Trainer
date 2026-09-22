@@ -194,6 +194,27 @@ describe('DrillSession', () => {
     expect(s.hear(chordOf(0, 4, 7))).toBe('correct');
   });
 
+  it('ignores a silent chord event', () => {
+    const s = new DrillSession(fakeExercise({ kind: 'chord', pitchClasses: [0, 4, 7] }).ex, opts());
+    s.start();
+    expect(s.hear(chordOf())).toBe('ignored');
+    expect(s.hear(chordOf(0, 4, 7))).toBe('correct');
+    expect(s.log[0]).toMatchObject({ firstTryCorrect: true, misses: 0 });
+  });
+
+  it('ignores a replay of the note just matched', () => {
+    const { ex, seenWeights } = fakeExercise(notesAnswer(60, 62));
+    const s = new DrillSession(ex, opts());
+    s.start();
+    expect(s.hear(note(60))).toBe('progress');
+    expect(s.hear(note(60))).toBe('ignored');
+    expect(s.matched).toBe(1);
+    expect(s.hear(note(62))).toBe('correct');
+    expect(s.log[0]).toMatchObject({ firstTryCorrect: true, misses: 0 });
+    s.advance();
+    expect(seenWeights[1].size).toBe(0);
+  });
+
   it('ignores chord events for note answers', () => {
     const s = new DrillSession(fakeExercise().ex, opts());
     s.start();

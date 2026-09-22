@@ -53,6 +53,8 @@ export function intervalCandidates(s: IntervalSettings): IntervalCandidate[] {
       const m = toMidi(root);
       if (m < lo || m > hi) continue;
       for (const name of s.intervals) {
+        // Played together, an octave is one pitch class: indistinguishable from a single note.
+        if (s.harmonic && name === 'P8') continue;
         for (const up of directions) {
           const target = transpose(root, INTERVALS[name], up ? 'up' : 'down');
           if (target) out.push({ key: `${noteName(root)} ${name}${up ? '↑' : '↓'}`, root, target, name, up });

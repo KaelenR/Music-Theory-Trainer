@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChordTracker, type ChordEvent, type ChromaFrame } from './chordTracker';
+import { ChordTracker, DEFAULT_CHORD_TRACKER_OPTIONS, type ChordEvent, type ChromaFrame } from './chordTracker';
 
 const C_MAJOR = Array.from({ length: 12 }, (_, pc) => ([0, 4, 7].includes(pc) ? 1 : 0));
 const fr = (time: number, rms = 0.1, chroma: number[] = C_MAJOR): ChromaFrame => ({ time, rms, chroma });
@@ -38,5 +38,20 @@ describe('ChordTracker', () => {
 
   it('stays quiet in silence', () => {
     expect(run(make(), every16(0, 400, 0.001))).toHaveLength(0);
+  });
+
+  it('ignores sounds barely above the silence level', () => {
+    expect(run(make(), every16(0, 400, 0.012))).toHaveLength(0);
+  });
+
+  it('follows a new silence level for the loudness gate', () => {
+    const t = make();
+    t.setSilenceRms(0.005);
+    expect(run(t, every16(0, 400, 0.012))).toHaveLength(1);
+  });
+
+  it('settles for about one FFT window by default', () => {
+    expect(DEFAULT_CHORD_TRACKER_OPTIONS.settleMs).toBe(180);
+    expect(DEFAULT_CHORD_TRACKER_OPTIONS.minPeakRatio).toBe(2);
   });
 });

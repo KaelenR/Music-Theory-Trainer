@@ -16,14 +16,18 @@ export interface ChordTrackerOptions extends OnsetOptions {
   /** Wait this long after the attack before listening, so hammer noise doesn't count. */
   settleMs: number;
   averageFrames: number;
+  /** Only emit if the loudest frame since the attack reaches this multiple of silenceRms. */
+  minPeakRatio: number;
 }
 
 export const DEFAULT_CHORD_TRACKER_OPTIONS: ChordTrackerOptions = {
   silenceRms: DEFAULT_LEVELS.silenceRms,
   onsetRatio: 1.5,
   rearmMs: 100,
-  settleMs: 120,
+  // 8192 samples ≈ 171 ms at 48 kHz: wait until the FFT window holds only the new chord.
+  settleMs: 180,
   averageFrames: 3,
+  minPeakRatio: 2,
 };
 
 export class ChordTracker {
@@ -33,6 +37,8 @@ export class ChordTracker {
   private emitted = false;
   private sum = new Float32Array(12);
   private count = 0;
+  /** Loudest RMS since the attack. */
+  private peak = 0;
 
   constructor(opts: Partial<ChordTrackerOptions> = {}) {
     this.opts = { ...DEFAULT_CHORD_TRACKER_OPTIONS, ...opts };
@@ -49,6 +55,7 @@ export class ChordTracker {
     this.emitted = false;
     this.sum.fill(0);
     this.count = 0;
+    this.peak = 0;
   }
 
   push(f: ChromaFrame): ChordEvent | null {
@@ -61,11 +68,18 @@ export class ChordTracker {
       this.reset();
       this.armedAt = f.time;
     }
+    this.peak = Math.max(this.peak, f.rms);
     if (this.emitted || this.armedAt === null || f.time - this.armedAt < this.opts.settleMs) return null;
 
     for (let pc = 0; pc < 12; pc++) this.sum[pc] += f.chroma[pc];
     this.count++;
     if (this.count < this.opts.averageFrames) return null;
+    if (this.peak < this.opts.minPeakRatio * this.opts.silenceRms) {
+      // Too faint to be a deliberate chord (a stray sound): keep listening with a fresh average.
+      this.sum.fill(0);
+      this.count = 0;
+      return null;
+    }
 
     this.emitted = true;
     this.onset.markEmitted(f.rms, f.time);

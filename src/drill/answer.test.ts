@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseNote } from '../music/note';
-import { describeReveal, heardPitchClasses, matchChord, matchNote, pitchClassNames } from './answer';
+import { describeReveal, DISPLAY_CUTOFF, heardPitchClasses, matchChord, matchNote, pitchClassNames } from './answer';
 import type { Question } from './types';
 
 const chroma = (entries: Record<number, number>) => Array.from({ length: 12 }, (_, pc) => entries[pc] ?? 0);
@@ -17,6 +17,15 @@ describe('matchNote', () => {
   it('compares pitch classes when any octave is allowed', () => {
     expect(matchNote({ ...answer, anyOctave: true }, 0, 48)).toBe('progress');
   });
+  it('ignores a repeat of the note just matched', () => {
+    const two = { kind: 'notes' as const, midis: [60, 64], anyOctave: false };
+    expect(matchNote(two, 1, 60)).toBe('ignored');
+    expect(matchNote({ ...two, anyOctave: true }, 1, 72)).toBe('ignored');
+    expect(matchNote(two, 1, 61)).toBe('wrong');
+  });
+  it('does not ignore a repeated note that is also the expected one', () => {
+    expect(matchNote({ kind: 'notes', midis: [60, 60], anyOctave: false }, 1, 60)).toBe('correct');
+  });
 });
 
 describe('matchChord', () => {
@@ -32,12 +41,24 @@ describe('matchChord', () => {
   it('fails on silence', () => {
     expect(matchChord([0, 4, 7], chroma({}))).toBe(false);
   });
+  it('exempts the fifth above a chord tone (its 3rd harmonic) from the absent check', () => {
+    expect(matchChord([0, 3, 6], chroma({ 0: 1, 3: 0.8, 6: 0.8, 10: 0.7 }))).toBe(true);
+  });
+  it('needs a chord tone that shadows an overtone to be stronger', () => {
+    expect(matchChord([0, 7], chroma({ 0: 1, 7: 0.5 }))).toBe(false);
+    expect(matchChord([0, 7], chroma({ 0: 1, 7: 0.9 }))).toBe(true);
+  });
 });
 
 describe('heardPitchClasses / pitchClassNames', () => {
   it('lists the clearly present pitch classes', () => {
     expect(heardPitchClasses(chroma({ 0: 1, 4: 0.8, 8: 0.9, 2: 0.1 }))).toEqual([0, 4, 8]);
     expect(pitchClassNames([0, 4, 8])).toBe('C E A♭');
+  });
+  it('leaves out weaker overtones by default, and takes a custom cutoff', () => {
+    expect(DISPLAY_CUTOFF).toBe(0.6);
+    expect(heardPitchClasses(chroma({ 0: 1, 7: 0.5 }))).toEqual([0]);
+    expect(heardPitchClasses(chroma({ 0: 1, 7: 0.5 }), 0.4)).toEqual([0, 7]);
   });
 });
 
