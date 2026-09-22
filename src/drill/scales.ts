@@ -12,6 +12,8 @@ export interface ScaleSettings {
   direction: ScaleDirection;
   /** Show only the key signature; the player works out the notes (any octave). */
   keySignatureOnly: boolean;
+  /** Exact tonics to use (e.g. ['C', 'G', 'F']); overrides moreKeys. Used by lesson presets. */
+  tonics?: string[];
 }
 
 export const DEFAULT_SCALES: ScaleSettings = {
@@ -34,7 +36,8 @@ export interface ScaleCandidate {
 }
 
 export function scaleCandidates(s: ScaleSettings): ScaleCandidate[] {
-  const tonics = [...COMMON_TONICS, ...(s.moreKeys ? MORE_TONICS : [])].map((t) => parseNote(`${t}${TONIC_OCTAVE[s.clef]}`));
+  const names = s.tonics ?? [...COMMON_TONICS, ...(s.moreKeys ? MORE_TONICS : [])];
+  const tonics = names.map((t) => parseNote(`${t}${TONIC_OCTAVE[s.clef]}`));
   const out: ScaleCandidate[] = [];
   for (const tonic of tonics) {
     for (const type of s.types) {

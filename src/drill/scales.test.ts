@@ -12,6 +12,11 @@ describe('scaleCandidates', () => {
     expect(scaleCandidates(settings({ types: ['major', 'natural-minor'] }))).toHaveLength(18);
     expect(scaleCandidates(settings({ moreKeys: true }))).toHaveLength(14);
   });
+
+  it('limits tonics when a list is given', () => {
+    expect(scaleCandidates(settings({ tonics: ['C', 'G', 'F'] })).map((c) => c.label)).toEqual(['C major', 'G major', 'F major']);
+    expect(scaleCandidates(settings({ tonics: ['Bb'], types: ['major', 'natural-minor'] }))).toHaveLength(2);
+  });
 });
 
 describe('createScales', () => {
