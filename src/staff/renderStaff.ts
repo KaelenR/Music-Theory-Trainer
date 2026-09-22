@@ -3,10 +3,13 @@ import {
   type RenderContext,
 } from 'vexflow/bravura';
 import { toMidi, type Note } from '../music/note';
-import type { Highlight, StaffView } from './types';
-import { accidentalOf, splitByStaff, toVexKey } from './vexKeys';
+import type { Highlight, StaffClef, StaffView } from './types';
+import { accidentalsFor, staffForNote, toVexKey, type AccidentalCode } from './vexKeys';
 
-const LOGICAL_WIDTH = 260;
+const SINGLE_ITEM_WIDTH = 260;
+const SEQUENCE_BASE_WIDTH = 110;
+const WIDTH_PER_ITEM = 38;
+const WIDTH_PER_KEY_ACCIDENTAL = 9;
 
 const COLORS: Record<Exclude<Highlight, null>, string> = {
   correct: '#1a9e4b',
@@ -20,22 +23,63 @@ export const staffReady: Promise<unknown> = Promise.all([
   document.fonts.load('12px Academico'),
 ]).catch(() => undefined);
 
-function buildNote(notes: Note[], clef: 'treble' | 'bass', color: string | null): StaveNote | GhostNote {
-  if (notes.length === 0) return new GhostNote('w');
-  const sorted = [...notes].sort((a, b) => toMidi(a) - toMidi(b));
-  const sn = new StaveNote({ keys: sorted.map(toVexKey), duration: 'w', clef });
-  sorted.forEach((n, i) => {
-    const acc = accidentalOf(n);
-    if (acc) sn.addModifier(new Accidental(acc), i);
+interface Placed {
+  note: Note;
+  accidental: AccidentalCode | null;
+}
+
+function logicalWidth(view: StaffView): number {
+  const keyAccidentals = view.keySignature ? Object.keys(view.keySignature.alters).length : 0;
+  const n = view.items.length;
+  const notesWidth = n <= 1 ? SINGLE_ITEM_WIDTH : SEQUENCE_BASE_WIDTH + WIDTH_PER_ITEM * n;
+  return notesWidth + keyAccidentals * WIDTH_PER_KEY_ACCIDENTAL;
+}
+
+function placeOn(clef: StaffClef, note: Note): 'treble' | 'bass' {
+  return clef === 'grand' ? staffForNote(note) : clef;
+}
+
+function buildNote(
+  placed: Placed[],
+  clef: 'treble' | 'bass',
+  duration: string,
+  highlight: Highlight | undefined,
+): StaveNote | GhostNote {
+  if (placed.length === 0) return new GhostNote(duration);
+  const sorted = [...placed].sort((a, b) => toMidi(a.note) - toMidi(b.note));
+  const sn = new StaveNote({ keys: sorted.map((p) => toVexKey(p.note)), duration, clef });
+  sorted.forEach((p, i) => {
+    if (p.accidental) sn.addModifier(new Accidental(p.accidental), i);
   });
-  if (color) sn.setStyle({ fillStyle: color, strokeStyle: color });
+  if (highlight) sn.setStyle({ fillStyle: COLORS[highlight], strokeStyle: COLORS[highlight] });
   return sn;
 }
 
-function drawNotes(ctx: RenderContext, stave: Stave, note: StaveNote | GhostNote): void {
-  const voice = new Voice({ numBeats: 4, beatValue: 4 }).addTickables([note]);
-  new Formatter().joinVoices([voice]).formatToStave([voice], stave);
-  voice.draw(ctx, stave);
+function voiceFor(view: StaffView, staff: 'treble' | 'bass', stave: Stave): Voice {
+  const duration = view.items.length > 1 ? 'q' : 'w';
+  const accidentals = accidentalsFor(view.items.map((i) => i.notes), view.keySignature?.alters);
+  const tickables = view.items.map((item, i) =>
+    buildNote(
+      item.notes
+        .map((note, j) => ({ note, accidental: accidentals[i][j] }))
+        .filter((p) => placeOn(view.clef, p.note) === staff),
+      staff,
+      duration,
+      item.highlight,
+    ),
+  );
+  const voice = new Voice({ numBeats: 4, beatValue: 4 });
+  voice.setMode(Voice.Mode.SOFT);
+  voice.addTickables(tickables.length > 0 ? tickables : [new GhostNote('w')]);
+  voice.setStave(stave);
+  return voice;
+}
+
+function stave(ctx: RenderContext, clef: 'treble' | 'bass', y: number, width: number, view: StaffView): Stave {
+  const s = new Stave(20, y, width - 30).addClef(clef);
+  if (view.keySignature) s.addKeySignature(view.keySignature.vexKey);
+  s.setContext(ctx);
+  return s;
 }
 
 export function renderStaff(
@@ -45,36 +89,39 @@ export function renderStaff(
   maxPixelHeight?: number,
 ): void {
   el.innerHTML = '';
-  const grand = view.clef === 'grand';
-  const logicalHeight = grand ? 280 : 170;
+  const width = logicalWidth(view);
+  const height = view.clef === 'grand' ? 280 : 170;
   const scale =
     maxPixelHeight != null
-      ? Math.min(pixelWidth / LOGICAL_WIDTH, maxPixelHeight / logicalHeight)
-      : pixelWidth / LOGICAL_WIDTH;
+      ? Math.min(pixelWidth / width, maxPixelHeight / height)
+      : pixelWidth / width;
   const renderer = new Renderer(el as HTMLDivElement, Renderer.Backends.SVG);
-  renderer.resize(LOGICAL_WIDTH * scale, logicalHeight * scale);
+  renderer.resize(width * scale, height * scale);
   const ctx = renderer.getContext();
   ctx.scale(scale, scale);
 
-  const color = view.highlight ? COLORS[view.highlight] : null;
-  const parts = splitByStaff(view);
-  const x = 20;
-  const w = LOGICAL_WIDTH - 30;
-
   if (view.clef === 'grand') {
-    const treble = new Stave(x, 30, w).addClef('treble');
-    const bass = new Stave(x, 140, w).addClef('bass');
-    treble.setContext(ctx).draw();
-    bass.setContext(ctx).draw();
+    const treble = stave(ctx, 'treble', 30, width, view);
+    const bass = stave(ctx, 'bass', 140, width, view);
+    Stave.formatBegModifiers([treble, bass]);
+    treble.draw();
+    bass.draw();
     new StaveConnector(treble, bass).setType('brace').setContext(ctx).draw();
     new StaveConnector(treble, bass).setType('singleLeft').setContext(ctx).draw();
     new StaveConnector(treble, bass).setType('singleRight').setContext(ctx).draw();
-    drawNotes(ctx, treble, buildNote(parts.treble, 'treble', color));
-    drawNotes(ctx, bass, buildNote(parts.bass, 'bass', color));
+    const tv = voiceFor(view, 'treble', treble);
+    const bv = voiceFor(view, 'bass', bass);
+    new Formatter()
+      .joinVoices([tv])
+      .joinVoices([bv])
+      .format([tv, bv], treble.getNoteEndX() - treble.getNoteStartX() - 10);
+    tv.draw(ctx, treble);
+    bv.draw(ctx, bass);
   } else {
-    const clef = view.clef;
-    const stave = new Stave(x, 40, w).addClef(clef);
-    stave.setContext(ctx).draw();
-    drawNotes(ctx, stave, buildNote(parts[clef], clef, color));
+    const s = stave(ctx, view.clef, 40, width, view);
+    s.draw();
+    const v = voiceFor(view, view.clef, s);
+    new Formatter().joinVoices([v]).formatToStave([v], s);
+    v.draw(ctx, s);
   }
 }

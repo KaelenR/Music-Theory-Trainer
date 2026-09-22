@@ -9,7 +9,7 @@
   import { createNoteReading } from '../drill/noteReading';
   import { DrillSession, type SessionStats } from '../drill/session';
   import { displayName, fromMidi } from '../music/note';
-  import type { StaffView } from '../staff/types';
+  import type { Highlight, StaffView } from '../staff/types';
 
   let { config, tuningOffset, levels, onFinish, onExit }: {
     config: DrillConfig;
@@ -51,9 +51,13 @@
 
   function showQuestion() {
     const q = session.current!;
-    view = { clef: q.clef, notes: q.notes, highlight: null };
+    view = { clef: q.clef, items: [{ notes: q.notes }] };
     feedback = null;
     message = '';
+  }
+
+  function withHighlight(v: StaffView, highlight: Highlight): StaffView {
+    return { ...v, items: v.items.map((item) => ({ ...item, highlight })) };
   }
 
   function syncScore() {
@@ -122,24 +126,24 @@
     if (result === 'correct') {
       feedback = 'correct';
       message = '';
-      view = { ...view, highlight: 'correct' };
+      view = withHighlight(view, 'correct');
       clearTimeout(timer);
       timer = setTimeout(next, 450);
     } else if (session.state === 'revealing') {
       feedback = 'wrong';
       message = `You played ${played}. Answer: ${displayName(q.notes[0])}`;
-      view = { ...view, highlight: 'answer' };
+      view = withHighlight(view, 'answer');
       clearTimeout(timer);
       timer = setTimeout(next, REVEAL_MS);
     } else {
       feedback = 'wrong';
       message = `You played ${played}. Try again.`;
-      view = { ...view, highlight: 'wrong' };
+      view = withHighlight(view, 'wrong');
       clearTimeout(timer);
       timer = setTimeout(() => {
         if (session.state === 'asking' && view) {
           feedback = null;
-          view = { ...view, highlight: null };
+          view = withHighlight(view, null);
         }
       }, 500);
     }
