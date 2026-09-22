@@ -25,9 +25,11 @@ describe('createNoteReading', () => {
   it('asks single notes on the configured clef', () => {
     const ex = createNoteReading(settings({ clef: 'grand', low: 'C3', high: 'C5' }));
     const q = ex.nextQuestion(noWeights, seededRng(1), null);
-    expect(q.notes).toHaveLength(1);
+    expect(q.display).toHaveLength(1);
+    expect(q.display[0]).toHaveLength(1);
+    expect(q.reveal).toEqual(q.display);
     expect(q.clef).toBe('grand');
-    expect(q.itemKey).toBe(noteName(q.notes[0]));
+    expect(q.itemKey).toBe(noteName(q.display[0][0]));
   });
 
   it('never repeats the previous item', () => {
@@ -50,18 +52,15 @@ describe('createNoteReading', () => {
     expect(d4).toBeGreaterThan(150);
   });
 
-  it('checks exact pitch by default', () => {
-    const ex = createNoteReading(settings());
-    const q = { itemKey: 'C4', notes: [parseNote('C4')], clef: 'treble' as const };
-    expect(ex.check(q, { midi: 60, time: 0 })).toBe('correct');
-    expect(ex.check(q, { midi: 72, time: 0 })).toBe('wrong');
-    expect(ex.check(q, { midi: 62, time: 0 })).toBe('wrong');
+  it('asks for the exact note by default', () => {
+    const ex = createNoteReading(settings({ low: 'C4', high: 'C4' }));
+    const q = ex.nextQuestion(noWeights, seededRng(1), null);
+    expect(q.display).toEqual([[parseNote('C4')]]);
+    expect(q.answer).toEqual({ kind: 'notes', midis: [60], anyOctave: false });
   });
 
-  it('accepts any octave when enabled', () => {
-    const ex = createNoteReading(settings({ anyOctave: true }));
-    const q = { itemKey: 'C4', notes: [parseNote('C4')], clef: 'treble' as const };
-    expect(ex.check(q, { midi: 48, time: 0 })).toBe('correct');
-    expect(ex.check(q, { midi: 61, time: 0 })).toBe('wrong');
+  it('passes any-octave through to the answer', () => {
+    const ex = createNoteReading(settings({ low: 'C4', high: 'C4', anyOctave: true }));
+    expect(ex.nextQuestion(noWeights, seededRng(1), null).answer).toEqual({ kind: 'notes', midis: [60], anyOctave: true });
   });
 });

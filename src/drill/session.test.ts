@@ -1,22 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { DrillSession, type SessionOptions } from './session';
-import type { Exercise, Question } from './types';
+import type { Answer, Exercise, Heard, Question } from './types';
 
-function fakeExercise() {
+const notesAnswer = (...midis: number[]): Answer => ({ kind: 'notes', midis, anyOctave: false });
+
+function fakeExercise(answer: Answer = notesAnswer(60), sameKey = false) {
   let i = 0;
   const seenWeights: Map<string, number>[] = [];
   const ex: Exercise = {
     nextQuestion(weights) {
       seenWeights.push(new Map(weights));
-      return { itemKey: `q${i++}`, notes: [], clef: 'treble' } satisfies Question;
+      const q: Question = { itemKey: sameKey ? 'same' : `q${i++}`, clef: 'treble', display: [], reveal: [], answer };
+      return q;
     },
-    check: (_q, h) => (h.midi === 60 ? 'correct' : 'wrong'),
   };
   return { ex, seenWeights };
 }
 
-const RIGHT = { midi: 60, time: 0 };
-const WRONG = { midi: 61, time: 0 };
+const note = (midi: number): Heard => ({ kind: 'note', midi, time: 0 });
+const chordOf = (...pcs: number[]): Heard => ({
+  kind: 'chord',
+  chroma: Array.from({ length: 12 }, (_, pc) => (pcs.includes(pc) ? 1 : 0)),
+  time: 0,
+});
+const RIGHT = note(60);
+const WRONG = note(61);
 const opts = (o: Partial<SessionOptions> = {}): SessionOptions => ({ length: 10, missMode: 'retry', weighting: true, ...o });
 
 describe('DrillSession', () => {
@@ -108,22 +116,17 @@ describe('DrillSession', () => {
   });
 
   it('reduces an item weight after a later first-try correct answer', () => {
-    const q: Question = { itemKey: 'same', notes: [], clef: 'treble' };
-    const seen: Map<string, number>[] = [];
-    const ex: Exercise = {
-      nextQuestion(weights) { seen.push(new Map(weights)); return q; },
-      check: (_q, h) => (h.midi === 60 ? 'correct' : 'wrong'),
-    };
+    const { ex, seenWeights } = fakeExercise(notesAnswer(60), true);
     const s = new DrillSession(ex, opts({ missMode: 'move-on', length: 'endless' }));
     s.start();
     s.hear(WRONG);
     s.advance();
     s.hear(WRONG);
     s.advance();
-    expect(seen[2].get('same')).toBe(2);
+    expect(seenWeights[2].get('same')).toBe(2);
     s.hear(RIGHT);
     s.advance();
-    expect(seen[3].get('same')).toBe(1);
+    expect(seenWeights[3].get('same')).toBe(1);
   });
 
   it('passes empty weights when weighting is off', () => {
@@ -152,5 +155,48 @@ describe('DrillSession', () => {
   it('returns zeroed stats with no answers', () => {
     const s = new DrillSession(fakeExercise().ex, opts());
     expect(s.stats()).toEqual({ asked: 0, correct: 0, accuracy: 0, avgResponseMs: 0, bestRun: 0 });
+  });
+
+  it('tracks progress through a multi-note answer', () => {
+    const s = new DrillSession(fakeExercise(notesAnswer(60, 62, 64)).ex, opts());
+    s.start();
+    expect(s.hear(note(60))).toBe('progress');
+    expect(s.matched).toBe(1);
+    expect(s.hear(note(62))).toBe('progress');
+    expect(s.hear(note(64))).toBe('correct');
+    expect(s.log[0]).toMatchObject({ firstTryCorrect: true, misses: 0 });
+  });
+
+  it('keeps the position after a wrong note mid-sequence in retry mode', () => {
+    const s = new DrillSession(fakeExercise(notesAnswer(60, 62)).ex, opts({ missMode: 'retry' }));
+    s.start();
+    s.hear(note(60));
+    expect(s.hear(note(65))).toBe('wrong');
+    expect(s.matched).toBe(1);
+    expect(s.hear(note(62))).toBe('correct');
+    expect(s.log[0]).toMatchObject({ firstTryCorrect: false, misses: 1 });
+  });
+
+  it('resets progress for the next question', () => {
+    const s = new DrillSession(fakeExercise(notesAnswer(60, 62)).ex, opts());
+    s.start();
+    s.hear(note(60));
+    s.hear(note(62));
+    s.advance();
+    expect(s.matched).toBe(0);
+  });
+
+  it('matches chord answers from chroma and ignores single notes', () => {
+    const s = new DrillSession(fakeExercise({ kind: 'chord', pitchClasses: [0, 4, 7] }).ex, opts());
+    s.start();
+    expect(s.hear(RIGHT)).toBe('ignored');
+    expect(s.hear(chordOf(0, 3, 7))).toBe('wrong');
+    expect(s.hear(chordOf(0, 4, 7))).toBe('correct');
+  });
+
+  it('ignores chord events for note answers', () => {
+    const s = new DrillSession(fakeExercise().ex, opts());
+    s.start();
+    expect(s.hear(chordOf(0, 4, 7))).toBe('ignored');
   });
 });

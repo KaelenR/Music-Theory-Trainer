@@ -6,6 +6,7 @@
   import { NoteTracker, type PitchFrame } from '../audio/noteTracker';
   import { meterPercent, type Levels } from '../audio/calibration';
   import type { DrillConfig } from '../drill/config';
+  import { describeReveal } from '../drill/answer';
   import { createNoteReading } from '../drill/noteReading';
   import { DrillSession, type SessionStats } from '../drill/session';
   import { displayName, fromMidi } from '../music/note';
@@ -51,7 +52,7 @@
 
   function showQuestion() {
     const q = session.current!;
-    view = { clef: q.clef, items: [{ notes: q.notes }] };
+    view = { clef: q.clef, keySignature: q.keySignature, items: q.display.map((notes) => ({ notes })) };
     feedback = null;
     message = '';
   }
@@ -118,8 +119,9 @@
 
   function onNote(midi: number, time: number) {
     const q = session.current;
-    const result = session.hear({ midi, time });
+    const result = session.hear({ kind: 'note', midi, time });
     if (result === 'ignored' || !q || !view) return;
+    if (result === 'progress') return;
     syncScore();
     const played = displayName(fromMidi(midi));
 
@@ -131,7 +133,7 @@
       timer = setTimeout(next, 450);
     } else if (session.state === 'revealing') {
       feedback = 'wrong';
-      message = `You played ${played}. Answer: ${displayName(q.notes[0])}`;
+      message = `You played ${played}. Answer: ${describeReveal(q)}`;
       view = withHighlight(view, 'answer');
       clearTimeout(timer);
       timer = setTimeout(next, REVEAL_MS);

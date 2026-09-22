@@ -1,4 +1,4 @@
-import { noteName, parseNote, pitchClass, STEPS, toMidi, type Alter, type Note } from '../music/note';
+import { noteName, parseNote, STEPS, toMidi, type Alter, type Note } from '../music/note';
 import type { StaffClef } from '../staff/types';
 import { weightedPick } from './random';
 import type { Exercise } from './types';
@@ -53,12 +53,13 @@ export function createNoteReading(s: NoteReadingSettings): Exercise {
     nextQuestion(weights, rng, previous) {
       const choices = previous && pool.length > 1 ? pool.filter((n) => noteName(n) !== previous.itemKey) : pool;
       const note = weightedPick(choices, (n) => 1 + 3 * (weights.get(noteName(n)) ?? 0), rng);
-      return { itemKey: noteName(note), notes: [note], clef: s.clef };
-    },
-    check(q, heard) {
-      const target = toMidi(q.notes[0]);
-      const ok = s.anyOctave ? pitchClass(heard.midi) === pitchClass(target) : heard.midi === target;
-      return ok ? 'correct' : 'wrong';
+      return {
+        itemKey: noteName(note),
+        clef: s.clef,
+        display: [[note]],
+        reveal: [[note]],
+        answer: { kind: 'notes', midis: [toMidi(note)], anyOctave: s.anyOctave },
+      };
     },
   };
 }

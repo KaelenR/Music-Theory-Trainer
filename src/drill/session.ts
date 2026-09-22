@@ -1,5 +1,6 @@
+import { matchChord, matchNote } from './answer';
 import type { Rng } from './random';
-import type { Exercise, HeardNote, MissMode, Question, QuestionLogEntry, SessionLength } from './types';
+import type { Exercise, Heard, HearResult, MissMode, Question, QuestionLogEntry, SessionLength } from './types';
 
 export type SessionState = 'idle' | 'asking' | 'answered' | 'revealing' | 'done';
 
@@ -28,6 +29,7 @@ export class DrillSession {
   private now: () => number;
   private missWeights = new Map<string, number>();
   private currentMisses = 0;
+  private matchedCount = 0;
   private askedAt = 0;
 
   constructor(exercise: Exercise, opts: SessionOptions, rng: Rng = Math.random, now: () => number = () => Date.now()) {
@@ -37,15 +39,35 @@ export class DrillSession {
     this.now = now;
   }
 
+  /** Notes of the current answer already played correctly. */
+  get matched(): number {
+    return this.matchedCount;
+  }
+
   start(): void {
     this.ask();
   }
 
-  hear(h: HeardNote): 'correct' | 'wrong' | 'ignored' {
+  hear(h: Heard): HearResult {
     if (this.state !== 'asking' || !this.current) return 'ignored';
-    const key = this.current.itemKey;
+    const answer = this.current.answer;
+    let step: 'progress' | 'correct' | 'wrong';
+    if (h.kind === 'note') {
+      if (answer.kind !== 'notes') return 'ignored';
+      step = matchNote(answer, this.matchedCount, h.midi);
+    } else {
+      if (answer.kind !== 'chord') return 'ignored';
+      step = matchChord(answer.pitchClasses, h.chroma) ? 'correct' : 'wrong';
+    }
 
-    if (this.exercise.check(this.current, h) === 'correct') {
+    if (step === 'progress') {
+      this.matchedCount++;
+      return 'progress';
+    }
+
+    const key = this.current.itemKey;
+    if (step === 'correct') {
+      this.matchedCount = answer.kind === 'notes' ? answer.midis.length : 0;
       if (this.currentMisses === 0) {
         const w = this.missWeights.get(key) ?? 0;
         if (w > 0) this.missWeights.set(key, w - 1);
@@ -106,6 +128,7 @@ export class DrillSession {
     const weights = this.opts.weighting ? this.missWeights : new Map<string, number>();
     this.current = this.exercise.nextQuestion(weights, this.rng, this.current);
     this.currentMisses = 0;
+    this.matchedCount = 0;
     this.askedAt = this.now();
     this.state = 'asking';
   }
