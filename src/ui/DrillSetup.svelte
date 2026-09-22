@@ -5,6 +5,7 @@
   import type { MissMode, SessionLength } from '../drill/types';
   import { getSetting, setSetting } from '../progress/db';
   import ChordOptions from './options/ChordOptions.svelte';
+  import HarmonyOptions from './options/HarmonyOptions.svelte';
   import IntervalOptions from './options/IntervalOptions.svelte';
   import NoteReadingOptions from './options/NoteReadingOptions.svelte';
   import ScaleOptions from './options/ScaleOptions.svelte';
@@ -60,8 +61,10 @@
     <IntervalOptions bind:settings={config.exercise} />
   {:else if config.exercise.type === 'chords'}
     <ChordOptions bind:settings={config.exercise} />
-  {:else}
+  {:else if config.exercise.type === 'scales'}
     <ScaleOptions bind:settings={config.exercise} />
+  {:else}
+    <HarmonyOptions bind:settings={config.exercise} />
   {/if}
 
   <section>
