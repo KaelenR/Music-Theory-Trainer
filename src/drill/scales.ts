@@ -12,6 +12,8 @@ export interface ScaleSettings {
   direction: ScaleDirection;
   /** Show only the key signature; the player works out the notes (any octave). */
   keySignatureOnly: boolean;
+  /** Name the scale in the prompt (default true). False asks the player to work out the key too. */
+  showName?: boolean;
   /** Exact tonics to use (e.g. ['C', 'G', 'F']); overrides moreKeys. Used by lesson presets. */
   tonics?: string[];
 }
@@ -65,7 +67,7 @@ export function createScales(s: ScaleSettings): Exercise {
         display: s.keySignatureOnly ? [] : sequence,
         reveal: sequence,
         keySignature: c.keySignature,
-        prompt: `${c.label} · ${s.direction === 'up' ? 'up one octave' : 'up and back down'}`,
+        prompt: `${s.showName === false ? 'Scale for this key signature' : c.label} · ${s.direction === 'up' ? 'up one octave' : 'up and back down'}`,
         answer: { kind: 'notes', midis: c.notes.map(toMidi), anyOctave: s.keySignatureOnly },
       };
     },

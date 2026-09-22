@@ -77,7 +77,7 @@ export const unit6: Lesson[] = [
     title: '7th chord symbols',
     cards: [
       {
-        text: '**C7** = dominant 7th. **Cmaj7** = major 7th. **Cm7** = minor 7th. **Cø7** = half-diminished. **C°7** = diminished 7th.',
+        text: '**C7** = dominant 7th. **Cmaj7** = major 7th. **Cm7** = minor 7th. **Cø7** = half-diminished. **C°7** = diminished 7th (C–E♭–G♭–B𝄫 — its 7th needs a double flat, so it isn\'t drawn).',
         // C°7 needs B double-flat, which the note model can't spell, so the staff shows the first four.
         staff: chords('treble', ['C4', 'E4', 'G4', 'Bb4'], ['C4', 'E4', 'G4', 'B4'], ['C4', 'Eb4', 'G4', 'Bb4'], ['C4', 'Eb4', 'Gb4', 'Bb4']),
       },

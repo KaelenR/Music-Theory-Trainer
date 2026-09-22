@@ -47,6 +47,13 @@ describe('createScales', () => {
     expect(q.prompt).toMatch(/up and back down$/);
   });
 
+  it('can hide the key name when practicing from the signature', () => {
+    const ex = createScales(settings({ keySignatureOnly: true, showName: false }));
+    const q = ex.nextQuestion(noWeights, seededRng(1), null);
+    expect(q.prompt).toBe('Scale for this key signature · up one octave');
+    expect(q.itemKey).toMatch(/ major up$/);
+  });
+
   it('writes bass-clef scales an octave lower', () => {
     const ex = createScales(settings({ clef: 'bass' }));
     const q = ex.nextQuestion(noWeights, seededRng(1), null);

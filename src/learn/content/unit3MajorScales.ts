@@ -89,10 +89,10 @@ export const unit3: Lesson[] = [
       },
     ],
     tryIt: [
-      { prompt: 'Play G major from its key signature alone — the notes are hidden.', answer: playScale('G4', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'G4', 'major'), hint: 'One sharp: F♯.' },
-      { prompt: 'Play B♭ major from its key signature.', answer: playScale('Bb3', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'Bb3', 'major'), hint: 'Two flats: B♭ and E♭.' },
-      { prompt: 'Play A major from its key signature.', answer: playScale('A4', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'A4', 'major'), hint: 'Three sharps: F♯, C♯ and G♯.' },
+      { prompt: 'Which major key has this signature? Play its scale.', answer: playScale('G4', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'G4', 'major'), hint: 'One sharp. The last sharp is F♯ — a half step up is G.' },
+      { prompt: 'Which major key has this signature? Play its scale.', answer: playScale('Bb3', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'Bb3', 'major'), hint: 'Two flats. The second-to-last flat is B♭.' },
+      { prompt: 'Which major key has this signature? Play its scale.', answer: playScale('A4', 'major', { anyOctave: true }), staff: keySignatureStaff('treble', 'A4', 'major'), hint: 'Three sharps. The last sharp is G♯ — a half step up is A.' },
     ],
-    drill: drill.scales({ moreKeys: true, keySignatureOnly: true }),
+    drill: drill.scales({ moreKeys: true, keySignatureOnly: true, showName: false }),
   },
 ];

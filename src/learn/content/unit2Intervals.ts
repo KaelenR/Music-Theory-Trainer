@@ -36,7 +36,7 @@ export const unit2: Lesson[] = [
         staff: chords('treble', ['C4', 'E4'], ['C4', 'G4']),
       },
       {
-        text: 'On the staff you can see it: **odd** numbers (3rd, 5th, 7th) go line to line or space to space; **even** numbers (2nd, 4th, 6th, octave) go line to space.',
+        text: 'On the staff you can see it: **odd** numbers (3rd, 5th, 7th) go line to line or space to space; **even** numbers (2nd, 4th, 6th, octave) go from a line to a space or a space to a line.',
         staff: chords('treble', ['E4', 'G4'], ['E4', 'A4']),
       },
       {

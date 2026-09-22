@@ -75,7 +75,7 @@ export const unit5: Lesson[] = [
         staff: chords('treble', ['C4', 'E4', 'G4'], ['C4', 'Eb4', 'G4']),
       },
       {
-        text: '**°** (or dim) means diminished: **B°**. **+** (or aug) means augmented: **C+**. Any accidental belongs to the root: **F♯m** is F♯–A–C♯.',
+        text: '**°** (or dim) means diminished: **B°**. **+** (or aug) means augmented: **C+**. An accidental right after the letter belongs to the root: **F♯m** is F♯–A–C♯.',
         staff: chords('treble', ['F#4', 'A4', 'C#5']),
       },
     ],
@@ -104,7 +104,7 @@ export const unit5: Lesson[] = [
     ],
     tryIt: [
       { prompt: 'Play this 1st-inversion chord.', answer: playChord('E4', 'G4', 'C5'), staff: chords('treble', ['E4', 'G4', 'C5']), keys: keys('E4', 'G4', 'C5'), hint: 'It is C major with E on the bottom.' },
-      { prompt: 'Play G major in 2nd inversion (D on the bottom).', answer: playChord('D4', 'G4', 'B4'), keys: keys('D4', 'G4', 'B4'), hint: 'D–G–B.' },
+      { prompt: 'Try G major in 2nd inversion — D on the bottom (any voicing counts).', answer: playChord('D4', 'G4', 'B4'), keys: keys('D4', 'G4', 'B4'), hint: 'D–G–B.' },
     ],
     drill: drill.chords({ qualities: ['maj', 'min'], inversions: true }),
   },

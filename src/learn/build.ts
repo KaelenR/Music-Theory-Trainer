@@ -79,14 +79,23 @@ export function playDiatonic(tonic: string, mode: Mode, degree: number): Answer 
   return { kind: 'chord', pitchClasses: chordPitchClasses(triadOrThrow(tonic, mode, degree)) };
 }
 
-export function keys(...names: string[]): KeyHighlight {
+function highlight(notes: Note[]): KeyHighlight {
   const labels: Record<number, string> = {};
-  const midis = parseAll(names).map((n) => {
+  const midis = notes.map((n) => {
     const m = toMidi(n);
     labels[m] = pitchName(n);
     return m;
   });
   return { midis, labels };
+}
+
+export function keys(...names: string[]): KeyHighlight {
+  return highlight(parseAll(names));
+}
+
+/** Keys for the same triad as `playDiatonic`, labeled in the key's spelling. */
+export function diatonicKeys(tonic: string, mode: Mode, degree: number): KeyHighlight {
+  return highlight(triadOrThrow(tonic, mode, degree));
 }
 
 /** Checkpoint presets: the drill's defaults plus overrides. */

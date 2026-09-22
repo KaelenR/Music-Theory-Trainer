@@ -36,6 +36,16 @@ describe('ChordTracker', () => {
     expect(events.map((e) => e.time)).toEqual([160, 400]);
   });
 
+  // TryIt relies on this: it does not reset between steps, so a chord still ringing after
+  // "Nice!" must not be heard again as the next step's answer.
+  it('does not re-emit a held chord unless reset', () => {
+    const t = make();
+    expect(run(t, every16(0, 400))).toHaveLength(1);
+    expect(run(t, every16(416, 1600))).toHaveLength(0);
+    t.reset();
+    expect(run(t, every16(1616, 2000))).toHaveLength(1);
+  });
+
   it('stays quiet in silence', () => {
     expect(run(make(), every16(0, 400, 0.001))).toHaveLength(0);
   });

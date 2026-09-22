@@ -48,6 +48,15 @@ describe('matchChord', () => {
     expect(matchChord([0, 7], chroma({ 0: 1, 7: 0.5 }))).toBe(false);
     expect(matchChord([0, 7], chroma({ 0: 1, 7: 0.9 }))).toBe(true);
   });
+  it('accepts a triad whose fifth is only moderately strong', () => {
+    // F major (F4 A4 C5) on device-like audio: C sits at 0.6–0.77.
+    expect(matchChord([0, 5, 9], chroma({ 5: 0.92, 9: 1, 0: 0.62 }))).toBe(true);
+  });
+  it('needs the seventh of a four-note chord above the overtone level of its third', () => {
+    // A C major triad: E's 3rd harmonic puts B at 0.35 — not Cmaj7.
+    expect(matchChord([0, 4, 7, 11], chroma({ 0: 1, 4: 0.95, 7: 0.9, 11: 0.35 }))).toBe(false);
+    expect(matchChord([0, 4, 7, 11], chroma({ 0: 1, 4: 0.95, 7: 0.9, 11: 0.75 }))).toBe(true);
+  });
 });
 
 describe('heardPitchClasses / pitchClassNames', () => {

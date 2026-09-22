@@ -1,4 +1,4 @@
-import { diatonicStaff, drill, playDiatonic } from '../build';
+import { diatonicKeys, diatonicStaff, drill, playDiatonic } from '../build';
 import type { Lesson } from '../types';
 
 export const unit7: Lesson[] = [
@@ -16,9 +16,9 @@ export const unit7: Lesson[] = [
       },
     ],
     tryIt: [
-      { prompt: 'Play the triad built on the 4th note of C major.', answer: playDiatonic('C4', 'major', 4), hint: 'F–A–C: F major.' },
-      { prompt: 'Play the triad on the 2nd note of G major.', answer: playDiatonic('G4', 'major', 2), hint: 'A–C–E: A minor.' },
-      { prompt: 'Play the triad on the 5th note of G major.', answer: playDiatonic('G4', 'major', 5), hint: 'D–F♯–A: D major (F♯ is in G major).' },
+      { prompt: 'Play the triad built on the 4th note of C major.', answer: playDiatonic('C4', 'major', 4), keys: diatonicKeys('C4', 'major', 4), hint: 'F–A–C: F major.' },
+      { prompt: 'Play the triad on the 2nd note of G major.', answer: playDiatonic('G4', 'major', 2), keys: diatonicKeys('G4', 'major', 2), hint: 'A–C–E: A minor.' },
+      { prompt: 'Play the triad on the 5th note of G major.', answer: playDiatonic('G4', 'major', 5), keys: diatonicKeys('G4', 'major', 5), hint: 'D–F♯–A: D major (F♯ is in G major).' },
     ],
     drill: drill.harmony({ tonics: ['C', 'G'], degrees: [1, 2, 3, 4, 5, 6, 7] }),
   },
@@ -36,9 +36,9 @@ export const unit7: Lesson[] = [
       },
     ],
     tryIt: [
-      { prompt: 'Play V in C major.', answer: playDiatonic('C4', 'major', 5), hint: 'G–B–D.' },
-      { prompt: 'Play IV in D major.', answer: playDiatonic('D4', 'major', 4), hint: 'G–B–D: G is the 4th note of D major.' },
-      { prompt: 'Play I in F major.', answer: playDiatonic('F4', 'major', 1), hint: 'F–A–C.' },
+      { prompt: 'Play V in C major.', answer: playDiatonic('C4', 'major', 5), keys: diatonicKeys('C4', 'major', 5), hint: 'G–B–D.' },
+      { prompt: 'Play IV in D major.', answer: playDiatonic('D4', 'major', 4), keys: diatonicKeys('D4', 'major', 4), hint: 'G–B–D: G is the 4th note of D major.' },
+      { prompt: 'Play I in F major.', answer: playDiatonic('F4', 'major', 1), keys: diatonicKeys('F4', 'major', 1), hint: 'F–A–C.' },
     ],
     drill: drill.harmony({ tonics: ['C', 'G', 'D', 'F'], degrees: [1, 4, 5] }),
   },
@@ -60,9 +60,9 @@ export const unit7: Lesson[] = [
       },
     ],
     tryIt: [
-      { prompt: 'Play vi in G major.', answer: playDiatonic('G4', 'major', 6), hint: 'E–G–B: E minor.' },
-      { prompt: 'Play ii in F major.', answer: playDiatonic('F4', 'major', 2), hint: 'G–B♭–D: G minor (B♭ is in F major).' },
-      { prompt: 'Play vii° in D major.', answer: playDiatonic('D4', 'major', 7), hint: 'C♯–E–G.' },
+      { prompt: 'Play vi in G major.', answer: playDiatonic('G4', 'major', 6), keys: diatonicKeys('G4', 'major', 6), hint: 'E–G–B: E minor.' },
+      { prompt: 'Play ii in F major.', answer: playDiatonic('F4', 'major', 2), keys: diatonicKeys('F4', 'major', 2), hint: 'G–B♭–D: G minor (B♭ is in F major).' },
+      { prompt: 'Play vii° in D major.', answer: playDiatonic('D4', 'major', 7), keys: diatonicKeys('D4', 'major', 7), hint: 'C♯–E–G.' },
     ],
     drill: drill.harmony({ tonics: ['C', 'G', 'D', 'F'], degrees: [1, 2, 3, 4, 5, 6, 7] }),
   },
@@ -80,9 +80,9 @@ export const unit7: Lesson[] = [
       },
     ],
     tryIt: [
-      { prompt: 'Play i in A minor.', answer: playDiatonic('A4', 'minor', 1), hint: 'A–C–E.' },
-      { prompt: 'Play V in A minor.', answer: playDiatonic('A4', 'minor', 5), hint: 'E–G♯–B: raise the 7th, G → G♯.' },
-      { prompt: 'Play iv in D minor.', answer: playDiatonic('D4', 'minor', 4), hint: 'G–B♭–D.' },
+      { prompt: 'Play i in A minor.', answer: playDiatonic('A4', 'minor', 1), keys: diatonicKeys('A4', 'minor', 1), hint: 'A–C–E.' },
+      { prompt: 'Play V in A minor.', answer: playDiatonic('A4', 'minor', 5), keys: diatonicKeys('A4', 'minor', 5), hint: 'E–G♯–B: raise the 7th, G → G♯.' },
+      { prompt: 'Play iv in D minor.', answer: playDiatonic('D4', 'minor', 4), keys: diatonicKeys('D4', 'minor', 4), hint: 'G–B♭–D.' },
     ],
     drill: drill.harmony({ mode: 'minor', tonics: ['A', 'E', 'D', 'G'], degrees: [1, 2, 3, 4, 5, 6, 7] }),
   },

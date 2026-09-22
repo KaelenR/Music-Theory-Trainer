@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chords, diatonicStaff, keys, keySignatureStaff, playChord, playDiatonic, playNotes, playScale, scaleStaff, seq } from './build';
+import { chords, diatonicKeys, diatonicStaff, keys, keySignatureStaff, playChord, playDiatonic, playNotes, playScale, scaleStaff, seq } from './build';
 
 describe('lesson builders', () => {
   it('builds staff views', () => {
@@ -18,5 +18,8 @@ describe('lesson builders', () => {
   });
   it('labels keys with the spelling given', () => {
     expect(keys('Bb4', 'D5')).toEqual({ midis: [70, 74], labels: { 70: 'B♭', 74: 'D' } });
+  });
+  it('highlights a diatonic triad in its spelling', () => {
+    expect(diatonicKeys('F4', 'major', 2)).toEqual({ midis: [67, 70, 74], labels: { 67: 'G', 70: 'B♭', 74: 'D' } });
   });
 });

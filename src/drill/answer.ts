@@ -25,16 +25,22 @@ export interface ChordThresholds {
   /** An expected pitch class must reach this fraction of the strongest one. */
   present: number;
   /**
-   * An expected pitch class a fifth above another chord tone must reach this instead, since that
-   * tone's 3rd harmonic already lands there.
+   * In a one- or two-note answer, an expected pitch class a fifth above another chord tone must
+   * reach this instead, since that tone's 3rd harmonic already lands there (protects harmonic
+   * 5ths and 4ths). Triads use `present`: their other tones rule out a lone overtone.
    */
   shadowedPresent: number;
+  /**
+   * In an answer of four or more pitch classes, an expected pitch class a fifth above another
+   * chord tone must reach this, so a triad's overtones don't pass for its 7th chord.
+   */
+  shadowedSeventh: number;
   /** An unexpected pitch class must stay below this fraction (unless it is a fifth above a chord tone). */
   absent: number;
 }
 
 /** Starting values; tune against the real piano using the Calibrate screen's chroma bars. */
-export const CHORD_THRESHOLDS: ChordThresholds = { present: 0.35, shadowedPresent: 0.7, absent: 0.6 };
+export const CHORD_THRESHOLDS: ChordThresholds = { present: 0.35, shadowedPresent: 0.7, shadowedSeventh: 0.5, absent: 0.6 };
 
 /** Pitch classes named in "You played …" messages must reach this fraction of the strongest one. */
 export const DISPLAY_CUTOFF = 0.6;
@@ -51,8 +57,10 @@ export function matchChord(pitchClasses: number[], chroma: ArrayLike<number>, t 
   if (!rel) return false;
   // Each tone's 3rd harmonic lands a perfect fifth above it.
   const shadowed = new Set(pitchClasses.map((p) => (p + 7) % 12));
+  const size = new Set(pitchClasses).size;
+  const shadowedMin = size <= 2 ? t.shadowedPresent : size === 3 ? t.present : t.shadowedSeventh;
   return rel.every((v, pc) => {
-    if (pitchClasses.includes(pc)) return v >= (shadowed.has(pc) ? t.shadowedPresent : t.present);
+    if (pitchClasses.includes(pc)) return v >= (shadowed.has(pc) ? shadowedMin : t.present);
     return shadowed.has(pc) || v < t.absent;
   });
 }

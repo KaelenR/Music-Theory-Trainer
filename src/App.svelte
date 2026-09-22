@@ -14,7 +14,7 @@
   import type { SessionStats } from './drill/session';
   import { UNITS } from './learn/curriculum';
   import { checkpointConfig, findLesson, lessonAfter } from './learn/path';
-  import { isPassing } from './learn/progress';
+  import { CHECKPOINT_LENGTH, isPassing } from './learn/progress';
 
   type Origin = 'path' | 'library';
   interface Checkpoint {
@@ -26,7 +26,7 @@
     | { name: 'calibrate' }
     | { name: 'setup'; type: ExerciseType }
     | { name: 'drill'; config: DrillConfig; run: number; checkpoint?: Checkpoint }
-    | { name: 'results'; config: DrillConfig; stats: SessionStats; checkpoint?: Checkpoint & { passed: boolean; saveFailed: boolean } }
+    | { name: 'results'; config: DrillConfig; stats: SessionStats; checkpoint?: Checkpoint & { complete: boolean; passed: boolean; saveFailed: boolean } }
     | { name: 'path' }
     | { name: 'library' }
     | { name: 'lesson'; lessonId: string; mode: 'lesson' | 'reference' };
@@ -56,6 +56,11 @@
       screen = { name: 'results', config, stats };
       return;
     }
+    if (stats.asked !== CHECKPOINT_LENGTH) {
+      // Ended early: show the results, but only a complete attempt counts toward the lesson.
+      screen = { name: 'results', config, stats, checkpoint: { ...checkpoint, complete: false, passed: false, saveFailed: false } };
+      return;
+    }
     const passed = isPassing(stats.correct);
     let saveFailed = false;
     try {
@@ -71,7 +76,7 @@
         passedAt: prev?.passedAt ?? (passed ? Date.now() : null),
       });
     }
-    screen = { name: 'results', config, stats, checkpoint: { ...checkpoint, passed, saveFailed } };
+    screen = { name: 'results', config, stats, checkpoint: { ...checkpoint, complete: true, passed, saveFailed } };
   }
 </script>
 
@@ -110,10 +115,10 @@
   {@const s = screen}
   {#if s.checkpoint}
     {@const cp = s.checkpoint}
-    {@const next = cp.passed && cp.origin === 'path' ? lessonAfter(UNITS, cp.lessonId) : null}
+    {@const next = cp.complete && cp.passed && cp.origin === 'path' ? lessonAfter(UNITS, cp.lessonId) : null}
     <Results
       stats={s.stats}
-      checkpoint={cp}
+      checkpoint={cp.complete ? cp : undefined}
       againLabel="Retake checkpoint"
       homeLabel={cp.origin === 'library' ? 'Back to library' : 'Back to lessons'}
       onAgain={() => startCheckpoint(cp.lessonId, cp.origin)}

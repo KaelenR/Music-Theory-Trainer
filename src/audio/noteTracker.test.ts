@@ -35,6 +35,17 @@ describe('NoteTracker', () => {
     expect(run(t, [f(0, 452), f(16, 452), f(32, 452)])).toHaveLength(0);
   });
 
+  // TryIt relies on this: it does not reset between steps, so a note still ringing after
+  // "Nice!" must not be heard again as the next step's answer.
+  it('does not re-emit a held note unless reset', () => {
+    const t = new NoteTracker(TEST_LEVELS);
+    const held = Array.from({ length: 80 }, (_, i) => f(i * 16, A4));
+    expect(run(t, held.slice(0, 5))).toHaveLength(1);
+    expect(run(t, held.slice(5))).toHaveLength(0);
+    t.reset();
+    expect(run(t, [f(1300, A4), f(1316, A4), f(1332, A4)])).toHaveLength(1);
+  });
+
   it('re-emits the same note after silence', () => {
     const t = new NoteTracker(TEST_LEVELS);
     const events = run(t, [
