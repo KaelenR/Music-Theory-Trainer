@@ -7,7 +7,7 @@
   import { meterPercent, type Levels } from '../audio/calibration';
   import type { DrillConfig } from '../drill/config';
   import { describeReveal } from '../drill/answer';
-  import { createNoteReading } from '../drill/noteReading';
+  import { createExercise } from '../drill/exercises';
   import { DrillSession, type SessionStats } from '../drill/session';
   import { displayName, fromMidi } from '../music/note';
   import type { Highlight, StaffView } from '../staff/types';
@@ -25,7 +25,7 @@
   const REVEAL_MS = 1000;
 
   // Config, tuning and levels are fixed for the lifetime of a drill.
-  const session = new DrillSession(createNoteReading(config.exercise), config.session);
+  const session = new DrillSession(createExercise(config.exercise), config.session);
   const tracker = new NoteTracker({ tuningOffsetCents: tuningOffset, silenceRms: levels.silenceRms });
   const silenceRms = levels.silenceRms;
   const lengthLabel = config.session.length === 'endless' ? '' : ` / ${config.session.length}`;

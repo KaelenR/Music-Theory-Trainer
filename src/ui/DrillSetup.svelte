@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { DEFAULT_DRILL_CONFIG, type DrillConfig } from '../drill/config';
-  import { candidateNotes, CLEF_DEFAULT_RANGES } from '../drill/noteReading';
+  import { candidateNotes, CLEF_DEFAULT_RANGES, type NoteReadingSettings } from '../drill/noteReading';
+  import type { ExerciseSettings } from '../drill/exercises';
   import { parseNote, STEPS, toMidi } from '../music/note';
   import { getSetting, setSetting } from '../progress/db';
   import type { StaffClef } from '../staff/types';
@@ -10,9 +11,18 @@
   let { onStart, onBack }: { onStart: (c: DrillConfig) => void; onBack: () => void } = $props();
 
   let config: DrillConfig = $state(structuredClone(DEFAULT_DRILL_CONFIG));
+  // Task 6 replaces this screen with per-exercise-type setup; until then it only edits note reading.
+  const ex = $derived(config.exercise as Extract<ExerciseSettings, { type: 'note-reading' }>);
   onMount(async () => {
     const saved = await getSetting<DrillConfig | null>('noteReadingSetup', null);
-    if (saved) config = { exercise: { ...DEFAULT_DRILL_CONFIG.exercise, ...saved.exercise }, session: { ...DEFAULT_DRILL_CONFIG.session, ...saved.session } };
+    if (saved) {
+      const base = DEFAULT_DRILL_CONFIG.exercise as NoteReadingSettings;
+      const savedEx = saved.exercise as Partial<NoteReadingSettings>;
+      config = {
+        exercise: { ...base, ...savedEx, type: 'note-reading' },
+        session: { ...DEFAULT_DRILL_CONFIG.session, ...saved.session },
+      };
+    }
   });
 
   const RANGE_NOTES: string[] = [];
@@ -36,15 +46,15 @@
   ];
 
   const poolSize = $derived(
-    toMidi(parseNote(config.exercise.low)) <= toMidi(parseNote(config.exercise.high))
-      ? candidateNotes(config.exercise).length
+    toMidi(parseNote(ex.low)) <= toMidi(parseNote(ex.high))
+      ? candidateNotes(ex).length
       : 0,
   );
 
   function setClef(c: StaffClef) {
-    config.exercise.clef = c;
-    config.exercise.low = CLEF_DEFAULT_RANGES[c].low;
-    config.exercise.high = CLEF_DEFAULT_RANGES[c].high;
+    ex.clef = c;
+    ex.low = CLEF_DEFAULT_RANGES[c].low;
+    ex.high = CLEF_DEFAULT_RANGES[c].high;
   }
 
   function start() {
@@ -62,18 +72,18 @@
     <h2>Clef</h2>
     <div class="seg">
       {#each CLEFS as c}
-        <button class:selected={config.exercise.clef === c.value} onclick={() => setClef(c.value)}>{c.label}</button>
+        <button class:selected={ex.clef === c.value} onclick={() => setClef(c.value)}>{c.label}</button>
       {/each}
     </div>
   </section>
 
   <section>
     <h2>Range</h2>
-    <label>From <select bind:value={config.exercise.low}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
-    <label>to <select bind:value={config.exercise.high}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
+    <label>From <select bind:value={ex.low}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
+    <label>to <select bind:value={ex.high}>{#each RANGE_NOTES as n}<option value={n}>{n}</option>{/each}</select></label>
     <span class="muted">{poolSize} notes</span>
-    <label class="check"><input type="checkbox" bind:checked={config.exercise.accidentals} /> Sharps &amp; flats</label>
-    <label class="check"><input type="checkbox" bind:checked={config.exercise.anyOctave} /> Accept any octave</label>
+    <label class="check"><input type="checkbox" bind:checked={ex.accidentals} /> Sharps &amp; flats</label>
+    <label class="check"><input type="checkbox" bind:checked={ex.anyOctave} /> Accept any octave</label>
   </section>
 
   <section>
